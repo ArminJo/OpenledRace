@@ -73,12 +73,17 @@
 #define INFO
 #include "DebugLevel.h" // to propagate debug level
 
+// for hunting errors
+//#include "AvrTracing.hpp"
+
 #define VERSION_EXAMPLE "1.0"
 
 //#define TEST_MODE
 //#define TIMING_TEST
 #define USE_ACCELERATOR_INPUT
+#if defined(USE_ACCELERATOR_INPUT)
 #define USE_ACCELERATION_NEOPIXEL_BARS
+#endif
 //#define BRIDGE_NO_NEOPATTERNS // to save RAM
 //#define LOOP_NO_NEOPATTERNS // to save RAM
 #define USE_SERIAL_LCD
@@ -90,13 +95,22 @@
 #define DO_NOT_USE_GYRO
 #define USE_ONLY_ACCEL_FLOATING_OFFSET
 #include "MPU6050IMUData.hpp"
+#elif defined(USE_SERIAL_LCD)
+#define I2C_HARDWARE 1 // use I2C Hardware
+#define I2C_PULLUP 1
+//#define I2C_TIMEOUT 5000 // costs 350 bytes
+#define I2C_FASTMODE 1
+#include "SoftI2CMaster.hpp" // is included in MPU6050IMUData.hpp
 #endif // #if defined(USE_ACCELERATOR_INPUT)
+#include "LongUnion.h"
 
 #if defined(USE_SERIAL_LCD)
+#define LCD_I2C_ADDRESS 0x27
 #include "LiquidCrystal_I2C.h" // Use an up to date library version which has the init method
-LiquidCrystal_I2C myLCD(0x27, 20, 4);  // set the LCD address to 0x27 for a 20 chars and 2 line display
+LiquidCrystal_I2C myLCD(LCD_I2C_ADDRESS, 20, 4);  // set the LCD address to 0x27 for a 20 chars and 2 line display
 void printBigNumber4(byte digit, byte leftAdjust);
 void initBigNumbers();
+void checkForLCDConnected();
 #endif
 
 /*
@@ -117,7 +131,7 @@ void initBigNumbers();
 #endif
 #define PIN_MANUAL_PARAMETER_MODE       9 // if connected to ground, analog inputs for parameters are used
 
-#define PIN_AUDIO          11   // must be pin 11, since we use the direct hardware tone output for ATmega328
+#define PIN_BUZZER          11   // must be pin 11, since we use the direct hardware tone output for ATmega328
 
 #define PIN_GRAVITY        A0
 #define PIN_FRICTION       A1
@@ -236,6 +250,8 @@ void resetAllCars();
 void resetTrack(bool aDoAnimation);
 void resetAndShowTrackWithoutCars();
 bool isCarInRegion(unsigned int aRegionFirst, unsigned int aRegionLength);
+void playShutdownMelody();
+void playShutdownMelodyAndBlinkForever();
 
 extern volatile unsigned long timer0_millis; // Used for ATmega328P to adjust for missed millis interrupts
 
@@ -246,7 +262,7 @@ extern volatile unsigned long timer0_millis; // Used for ATmega328P to adjust fo
 #define STR(x) STR_HELPER(x)
 
 void myTone(int aFrequency) {
-    tone(PIN_AUDIO, aFrequency);
+    tone(PIN_BUZZER, aFrequency);
 #if defined(TCCR2A)
     // switch to direct toggle output at OC2A / pin 11 to enable direct hardware tone output
     TCCR2A |= _BV(COM2A0);
@@ -308,7 +324,20 @@ public:
             AcceleratorInput.setI2CAddress(MPU6050_ADDRESS_AD0_HIGH);
         }
         // use maximum filtering. If it works ??? it prefers slow and huge movements :-)
-        AcceleratorInput.initMPU6050(20, MPU6050_BAND_5_HZ);
+
+        if (!AcceleratorInput.initMPU6050(20, MPU6050_BAND_5_HZ)) {
+            Serial.print(F("No MPU6050 IMU connected at address 0x"));
+            Serial.print(AcceleratorInput.I2CAddress, HEX);
+            Serial.print(F(" for car "));
+            Serial.print(aNumberOfThisCar);
+            Serial.println(F(". Disable \"#define USE_ACCELERATOR_INPUT\""));
+#if defined(USE_SERIAL_LCD)
+            myLCD.setCursor(0, 2);
+            myLCD.print(F("No IMU for car "));
+            myLCD.print(aNumberOfThisCar);
+#endif
+            playShutdownMelodyAndBlinkForever();
+        }
         AcceleratorInput.calculateAllOffsets();
 #  if defined(INFO)
         if (!sOnlyPlotterOutput) {
@@ -449,10 +478,10 @@ public:
      * The 2 seconds are introduced, to avoid direct abort by button action just after the finish.
      */
     void doWinner() {
-        noTone(PIN_AUDIO);
+        noTone(PIN_BUZZER);
         // isInitialized winner situation
         delay(3000);
-        startPlayRtttlPGM(PIN_AUDIO, WinnerMelody);
+        startPlayRtttlPGM(PIN_BUZZER, WinnerMelody);
         TrackPtr->ScannerExtended(Color, Laps, 10, 3, FLAG_SCANNER_EXT_ROCKET | FLAG_DO_NOT_CLEAR);
 
         while (updatePlayRtttl()) {
@@ -976,8 +1005,8 @@ void setup() {
     bool tIsAnalogParameterInputMode = !digitalRead(PIN_MANUAL_PARAMETER_MODE);
 
 // Just to know which program is running on my Arduino
+    Serial.println(F("START " __FILE__ " from " __DATE__));
     if (!sOnlyPlotterOutput) {
-        Serial.println(F("START " __FILE__ " from " __DATE__));
         Serial.print(F("AnalogParameterInputMode is "));
         if (tIsAnalogParameterInputMode) {
             Serial.print(F("enabled. Pin "));
@@ -1007,6 +1036,8 @@ void setup() {
      * LCD initialization
      */
 #if defined(USE_SERIAL_LCD)
+    checkForLCDConnected(); // this blocks if no LCD connected
+
     myLCD.init();
     myLCD.clear();
     myLCD.backlight();
@@ -1016,15 +1047,12 @@ void setup() {
     initBigNumbers();
 #endif
 
+    Serial.println(F("Initialize track"));
+    Serial.flush();
+
 // This initializes the NeoPixel library and checks if enough memory was available
     if (!track.begin(&Serial)) {
-        // Blink forever
-        while (true) {
-            digitalWrite(LED_BUILTIN, HIGH);
-            delay(500);
-            digitalWrite(LED_BUILTIN, LOW);
-            delay(500);
-        }
+        playShutdownMelodyAndBlinkForever();
     }
 
     /*
@@ -1034,6 +1062,8 @@ void setup() {
         AccelerationMap[i] = 0;
     }
 
+    Serial.println(F("Initialize bridges and loops"));
+    Serial.flush();
     /*
      * Setup bridges and loops
      */
@@ -1044,14 +1074,11 @@ void setup() {
 //    myTone(64000);
     loops[0].init(&track, LOOP_1_UP_START, LOOP_1_LENGTH); // 69 bytes on heap
 
-    if (!sOnlyPlotterOutput) {
-        Serial.println(F("Bridges and loops initialized"));
-        Serial.flush();
-    }
     /*
      * Setup cars
      */
-
+    Serial.println(F("Initialize cars"));
+    Serial.flush();
     cars[0].init(&track, 1, PIN_PLAYER_1_BUTTON, CAR_1_COLOR, MissionImp);
     cars[1].init(&track, 2, PIN_PLAYER_2_BUTTON, CAR_2_COLOR, StarWars);
 //    cars[2].init(&track, 3, PIN_PLAYER_3_BUTTON, CAR_3_COLOR, Entertainer);
@@ -1063,15 +1090,13 @@ void setup() {
     cars[1].AccelerationBarPin = PIN_VU_BAR_2;
 #endif
 
-    if (!sOnlyPlotterOutput) {
-        Serial.println(F(STR(NUMBER_OF_CARS) " cars initialized"));
-    }
+    Serial.println(F(STR(NUMBER_OF_CARS) " cars initialized"));
 #if defined(USE_ACCELERATOR_INPUT)
     randomSeed(cars[0].AcceleratorInput.AcceleratorLowpassSubOneHertz[0].ULong);
 #endif
 
 // signal boot
-    tone(PIN_AUDIO, 1200, 200);
+    tone(PIN_BUZZER, 1200, 200);
 
     /*
      * Boot animation
@@ -1098,7 +1123,11 @@ void setup() {
     }
 #endif
     if (!sOnlyPlotterOutput) {
-        Serial.println(F("Press any button to start countdown"));
+        Serial.print(F("Press any button"));
+#  if defined(USE_ACCELERATOR_INPUT)
+        Serial.print(F(" or move controller"));
+#endif
+        Serial.println(F(" to start countdown"));
     }
 #if defined(USE_SERIAL_LCD)
     uint8_t tLineIndex = 1;
@@ -1253,7 +1282,7 @@ void loop() {
             if (tFrequency > 100) {
                 myTone(tFrequency);
             } else {
-                noTone(PIN_AUDIO);
+                noTone(PIN_BUZZER);
             }
         }
     }
@@ -1264,6 +1293,28 @@ void loop() {
         yield();
     }
     sNextLoopMillis += MILLISECONDS_PER_LOOP;
+}
+
+void playShutdownMelody() {
+    tone(PIN_BUZZER, 2000, 200);
+    delay(400);
+    tone(PIN_BUZZER, 1400, 300);
+    delay(600);
+    tone(PIN_BUZZER, 1000, 400);
+    delay(800);
+    tone(PIN_BUZZER, 700, 500);
+    delay(800);
+
+}
+
+void playShutdownMelodyAndBlinkForever() {
+    playShutdownMelody();
+    while (true) {
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(500);
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(500);
+    }
 }
 
 bool isCarInRegion(unsigned int aRegionFirst, unsigned int aRegionLength) {
@@ -1329,7 +1380,7 @@ void startRace() {
         track.setPixelColor(tIndex + (2 * tCountDown) + 1, COLOR32_RED);
         track.show();
         if (tCountDown != 0) {
-            tone(PIN_AUDIO, 600, 200);
+            tone(PIN_BUZZER, 600, 200);
 #if defined(TCCR2A)
             // switch to direct toggle output at OC2A / pin 11 to enable direct hardware tone output
             TCCR2A |= _BV(COM2A0);
@@ -1357,6 +1408,18 @@ void startRace() {
 }
 
 #if defined(USE_SERIAL_LCD)
+void checkForLCDConnected() {
+    if (!sOnlyPlotterOutput) {
+        Serial.println(F("Try to connect to I2C LCD"));
+        Serial.flush();
+    }
+    if (!i2c_start(LCD_I2C_ADDRESS << 1)) {
+        Serial.print(F("No I2C LCD connected at address " STR(LCD_I2C_ADDRESS) ". Disable \"#define USE_SERIAL_LCD\""));
+        playShutdownMelody();
+    }
+    i2c_stop();
+}
+
 const char LCDCustomPatterns[][8] PROGMEM = { { 0x01, 0x07, 0x0F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F }, // char 1: bottom right triangle
         { 0x00, 0x00, 0x00, 0x00, 0x1F, 0x1F, 0x1F, 0x1F },      // char 2: bottom block
         { 0x10, 0x1C, 0x1E, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F },      // char 3: bottom left triangle
