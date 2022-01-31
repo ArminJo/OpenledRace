@@ -38,10 +38,12 @@ extern volatile uint16_t sNumberOfSleeps;
 
 #define HEAP_STACK_UNTOUCHED_VALUE 0x5A
 void initStackFreeMeasurement();
-uint16_t getStackFreeMinimumBytes();
-uint16_t getStackUsedMaximumBytes(uint16_t *aStackStillFreeBytes);
-void printStackFreeMinimumBytes(Print *aSerial);
-void printStackUsedAndFreeBytes(Print *aSerial);
+uint16_t getStackUnusedBytes();
+void printStackUnusedBytes(Print *aSerial);
+uint16_t getStackUnusedAndUsedBytes(uint16_t *aStackUsedBytesPointer);
+void printStackUnusedAndUsedBytes(Print *aSerial);
+void printStackUnusedAndUsedBytesIfChanged(Print *aSerial);
+
 uint8_t * getHeapStart();
 uint16_t getFreeHeap(void);
 void printFreeHeap(Print *aSerial);

@@ -65,13 +65,16 @@
 #include <Arduino.h>
 
 #include "PlayRtttl.h"
-#include "AVRUtils.h" // for initStackFreeMeasurement()
 #include "NeoPatterns.h"
 
 //#define TRACE
 //#define DEBUG
 #define INFO
 #include "DebugLevel.h" // to propagate debug level
+
+#if defined(INFO) && defined(__AVR__)
+#include "AVRUtils.h" // for initStackFreeMeasurement() and printFreeHeap()
+#endif
 
 // for hunting errors
 //#include "AvrTracing.hpp"
@@ -998,7 +1001,7 @@ void setup() {
 #endif
 
     Serial.begin(115200);
-#if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
+#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) || defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
     delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     sOnlyPlotterOutput = digitalRead(PIN_SERIAL_MONITOR_OUTPUT);
@@ -1118,7 +1121,7 @@ void setup() {
 
 #if defined(INFO) && defined(__AVR__)
     if (!sOnlyPlotterOutput) {
-        printStackUsedAndFreeBytes(&Serial);
+        printStackUnusedAndUsedBytes(&Serial);
         printFreeHeap(&Serial);
     }
 #endif
@@ -1164,7 +1167,7 @@ void loop() {
 
 #if defined(INFO) && defined(__AVR__)
             if (!sOnlyPlotterOutput) {
-                printStackUsedAndFreeBytes(&Serial);
+                printStackUnusedAndUsedBytesIfChanged(&Serial);
             }
 #endif
         }
@@ -1225,8 +1228,7 @@ void loop() {
             sMode = MODE_WAIT;
 #if defined(INFO) && defined(__AVR__)
             if (!sOnlyPlotterOutput) {
-                Serial.print(F("Min stack free[bytes]="));
-                Serial.println(getStackFreeMinimumBytes());
+                printStackUnusedAndUsedBytesIfChanged(&Serial);
             }
 #endif
             break;

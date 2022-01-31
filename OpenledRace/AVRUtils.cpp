@@ -49,10 +49,41 @@ void initStackFreeMeasurement() {
 }
 
 /*
+ * Returns the amount of stack not used/touched since the last call to initStackFreeMeasurement()
+ * by check for first touched pattern on the stack, starting the search at heap start.
+ * Sets the variable aStackUsedBytesPointer points to with amount of used/touched bytes.
+ */
+uint16_t getStackUnusedAndUsedBytes(uint16_t *aStackUsedBytesPointer) {
+    extern unsigned int __heap_start;
+    extern void *__brkval;
+    uint8_t tDummyVariableOnStack;
+
+    uint8_t *tHeapPtr = (uint8_t*) __brkval;
+    if (tHeapPtr == 0) {
+        tHeapPtr = (uint8_t*) &__heap_start;
+    }
+
+// first search for first match after current begin of heap, because malloc() and free() may be happened in between and overwrite low memory
+    while (*tHeapPtr != HEAP_STACK_UNTOUCHED_VALUE && tHeapPtr < &tDummyVariableOnStack) {
+        tHeapPtr++;
+    }
+// then count untouched patterns
+    uint16_t tStackUnused = 0;
+    while (*tHeapPtr == HEAP_STACK_UNTOUCHED_VALUE && tHeapPtr < &tDummyVariableOnStack) {
+        tHeapPtr++;
+        tStackUnused++;
+    }
+    *aStackUsedBytesPointer = (RAMEND - (uint16_t) tHeapPtr) + 1;
+
+// word -> bytes
+    return tStackUnused;
+}
+
+/*
  * Returns the amount of stack not touched since the last call to initStackFreeMeasurement()
  * by check for first touched pattern on the stack, starting the search at heap start.
  */
-uint16_t getStackFreeMinimumBytes() {
+uint16_t getStackUnusedBytes() {
     extern unsigned int __heap_start;
     extern void *__brkval;
     uint8_t tDummyVariableOnStack;
@@ -67,56 +98,49 @@ uint16_t getStackFreeMinimumBytes() {
         tHeapPtr++;
     }
 // then count untouched patterns
-    uint16_t tStackFree = 0;
+    uint16_t tStackUnused = 0;
     while (*tHeapPtr == HEAP_STACK_UNTOUCHED_VALUE && tHeapPtr < &tDummyVariableOnStack) {
         tHeapPtr++;
-        tStackFree++;
+        tStackUnused++;
     }
 // word -> bytes
-    return tStackFree;
+    return tStackUnused;
 }
-
-uint16_t getStackUsedMaximumBytes(uint16_t *aStackStillFreeBytes) {
-    extern unsigned int __heap_start;
-    extern void *__brkval;
-    uint8_t tDummyVariableOnStack;
-
-    uint8_t *tHeapPtr = (uint8_t*) __brkval;
-    if (tHeapPtr == 0) {
-        tHeapPtr = (uint8_t*) &__heap_start;
-    }
-
-// first search for first match after current begin of heap, because malloc() and free() may be happened in between and overwrite low memory
-    while (*tHeapPtr != HEAP_STACK_UNTOUCHED_VALUE && tHeapPtr < &tDummyVariableOnStack) {
-        tHeapPtr++;
-    }
-// then count untouched patterns
-    uint16_t tStackFree = 0;
-    while (*tHeapPtr == HEAP_STACK_UNTOUCHED_VALUE && tHeapPtr < &tDummyVariableOnStack) {
-        tHeapPtr++;
-        tStackFree++;
-    }
-// word -> bytes
-    *aStackStillFreeBytes = tStackFree;
-
-    return (RAMEND - (uint16_t)tHeapPtr) + 1;
-}
-
 
 /*
  * Prints the amount of stack not touched (available) since the last call to initStackFreeMeasurement().
  */
-void printStackFreeMinimumBytes(Print *aSerial) {
-    aSerial->print(F("Minimum free Stack[bytes]="));
-    aSerial->println(getStackFreeMinimumBytes());
+void printStackUnusedBytes(Print *aSerial) {
+    aSerial->print(F("Stack unused[bytes]="));
+    aSerial->println(getStackUnusedBytes());
 }
 
-void printStackUsedAndFreeBytes(Print *aSerial) {
-    uint16_t tStackStillFreeBytes;
-    aSerial->print(F("Stack used="));
-    aSerial->print(getStackUsedMaximumBytes(&tStackStillFreeBytes));
-    aSerial->print(F(", free="));
-    aSerial->println(tStackStillFreeBytes);
+/*
+ * Prints the amount of stack NOT used/touched and used/touched since the last call to initStackFreeMeasurement()
+ */
+void printStackUnusedAndUsedBytes(Print *aSerial) {
+    uint16_t tStackUsedBytes;
+    aSerial->print(F("Stack unused="));
+    aSerial->print(getStackUnusedAndUsedBytes(&tStackUsedBytes));
+    aSerial->print(F(", used="));
+    aSerial->println(tStackUsedBytes);
+}
+
+/*
+ * Prints the amount of stack NOT used/touched and used/touched since the last call to initStackFreeMeasurement()
+ * Print only if value changed.
+ */
+void printStackUnusedAndUsedBytesIfChanged(Print *aSerial) {
+    static uint16_t sStackUsedBytes = 0;
+
+    uint16_t tOldStackUsedBytes = sStackUsedBytes;
+    uint16_t tStackUnusedBytes = getStackUnusedAndUsedBytes(&sStackUsedBytes);
+    if (tOldStackUsedBytes != sStackUsedBytes) {
+        aSerial->print(F("Stack unused="));
+        aSerial->print(tStackUnusedBytes);
+        aSerial->print(F(", used="));
+        aSerial->println(sStackUsedBytes);
+    }
 }
 
 /*
