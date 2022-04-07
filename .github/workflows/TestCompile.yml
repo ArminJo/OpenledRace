@@ -1,7 +1,7 @@
 # TestCompile.yml
 # Github workflow script to test compile all examples of an Arduino library repository.
 #
-# Copyright (C) 2020  Armin Joachimsmeyer
+# Copyright (C) 2020-2022  Armin Joachimsmeyer
 # https://github.com/ArminJo/Github-Actions
 #
 
@@ -29,6 +29,5 @@ jobs:
       - name: Compile all examples
         uses: ArminJo/arduino-test-compile@master
         with:
-#          required-libraries: Adafruit NeoPixel,PlayRtttl,SoftI2CMaster
-          required-libraries: Adafruit NeoPixel,PlayRtttl
+          required-libraries: Adafruit NeoPixel,PlayRtttl,SoftI2CMaster
           build-properties: -DSERIAL_RX_BUFFER_SIZE=8

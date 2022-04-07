@@ -44,7 +44,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/gpl.html>.
+ *  along with this program. If not, see <http://www.gnu.org/licenses/gpl.html>.
  */
 /*
  * Open LED Race
@@ -64,8 +64,12 @@
  */
 #include <Arduino.h>
 
-#include "PlayRtttl.h"
-#include "NeoPatterns.h"
+#include "PlayRtttl.hpp"
+
+#define ENABLE_PATTERN_SCANNER_EXTENDED
+#define ENABLE_PATTERN_COLOR_WIPE
+#define ENABLE_PATTERN_STRIPES
+#include "NeoPatterns.hpp"
 
 //#define TRACE
 //#define DEBUG
@@ -254,7 +258,7 @@ void resetTrack(bool aDoAnimation);
 void resetAndShowTrackWithoutCars();
 bool isCarInRegion(unsigned int aRegionFirst, unsigned int aRegionLength);
 void playShutdownMelody();
-void playShutdownMelodyAndBlinkForever();
+void playMelodyAndShutdown();
 
 extern volatile unsigned long timer0_millis; // Used for ATmega328P to adjust for missed millis interrupts
 
@@ -339,7 +343,7 @@ public:
             myLCD.print(F("No IMU for car "));
             myLCD.print(aNumberOfThisCar);
 #endif
-            playShutdownMelodyAndBlinkForever();
+            playMelodyAndShutdown();
         }
         AcceleratorInput.calculateAllOffsets();
 #  if defined(INFO)
@@ -801,7 +805,7 @@ public:
         bool tCarIsOnRamp = isCarInRegion(StartPositionOnTrack, RampLength);
         color32_t tColor = RAMP_COLOR;
         if (tCarIsOnRamp) {
-            tColor = TrackPtr->dimColorWithGamma32(tColor, 160);
+            tColor = TrackPtr->dimColorWithGamma5(tColor, 160);
         }
 #if !defined(BRIDGE_NO_NEOPATTERNS)
         if (isInitialized && aDoAnimation) {
@@ -972,7 +976,7 @@ public:
         (void) aDoAnimation; // to avoid compiler warning
 #endif
         if (tCarIsOnLoop) {
-            tColor = TrackPtr->dimColorWithGamma32(tColor, 160);
+            tColor = TrackPtr->dimColorWithGamma5(tColor, 160);
         }
         TrackPtr->fillRegion(tColor, StartPositionOnTrack, LoopLength);
     }
@@ -1001,7 +1005,7 @@ void setup() {
 #endif
 
     Serial.begin(115200);
-#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) || defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
+#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/|| defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
     delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     sOnlyPlotterOutput = digitalRead(PIN_SERIAL_MONITOR_OUTPUT);
@@ -1055,7 +1059,7 @@ void setup() {
 
 // This initializes the NeoPixel library and checks if enough memory was available
     if (!track.begin(&Serial)) {
-        playShutdownMelodyAndBlinkForever();
+        playMelodyAndShutdown();
     }
 
     /*
@@ -1309,7 +1313,7 @@ void playShutdownMelody() {
 
 }
 
-void playShutdownMelodyAndBlinkForever() {
+void playMelodyAndShutdown() {
     playShutdownMelody();
     while (true) {
         digitalWrite(LED_BUILTIN, HIGH);
@@ -1418,7 +1422,7 @@ void checkForLCDConnected() {
 #if defined(USE_SOFT_I2C_MASTER)
     if (!i2c_start(LCD_I2C_ADDRESS << 1)) {
         Serial.print(F("No I2C LCD connected at address " STR(LCD_I2C_ADDRESS) ". Disable \"#define USE_SERIAL_LCD\""));
-        playShutdownMelody();
+        playMelodyAndShutdown();
     }
     i2c_stop();
 #endif
