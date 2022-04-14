@@ -29,5 +29,6 @@ jobs:
       - name: Compile all examples
         uses: ArminJo/arduino-test-compile@master
         with:
-          required-libraries: Adafruit NeoPixel,PlayRtttl,SoftI2CMaster
+#          required-libraries: Adafruit NeoPixel,PlayRtttl,SoftI2CMaster
+          required-libraries: Adafruit NeoPixel,PlayRtttl
           build-properties: -DSERIAL_RX_BUFFER_SIZE=8
