@@ -729,4 +729,3 @@ uint16_t MPU6050IMUData::MPU6050ReadWord(uint8_t aRegisterNumber) {
 }
 
 #endif // _MPU6050_IMU_DATA_HPP
-#pragma once
