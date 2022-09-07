@@ -559,7 +559,7 @@ public:
              */
             Serial.print(tAcceleration);
             Serial.print(' ');
-            Serial.print(AcceleratorLowPassValue >> 8);
+            Serial.print(AcceleratorLowPassValue);
             Serial.print(' ');
             Serial.print(int(SpeedAsPixelPerLoop * 100));
             Serial.print(' ');
