@@ -269,6 +269,7 @@ void playMelodyAndShutdown();
 void checkAndHandleWinner();
 void checkForOvertakingLeaderCar();
 bool checkForInputToStart();
+void printConfigPinInfo(uint8_t aConfigPinNumber, const __FlashStringHelper *aConfigPinDescription, Print *aSerial);
 
 extern volatile unsigned long timer0_millis; // Used for ATmega328P to adjust for missed millis interrupts
 
@@ -1055,7 +1056,6 @@ void setup() {
 #endif
 
     sOnlyPlotterOutput = !digitalRead(PIN_ONLY_PLOTTER_OUTPUT);
-    bool tIsAnalogParameterInputMode = !digitalRead(PIN_MANUAL_PARAMETER_MODE);
 
     if (!sOnlyPlotterOutput) {
 
@@ -1064,17 +1064,7 @@ void setup() {
         Serial.println(
                 F(
                         "Connect pin " STR(PIN_ONLY_PLOTTER_OUTPUT) " to ground, to suppress such prints not suited for Arduino plotter"));
-        Serial.print(F("Pin " STR(PIN_MANUAL_PARAMETER_MODE) " is "));
-        if (!tIsAnalogParameterInputMode) {
-            Serial.print(F("dis"));
-        }
-        Serial.print(F("connected from ground -> AnalogParameterInputMode is "));
-
-        if (tIsAnalogParameterInputMode) {
-            Serial.println(F("enabled"));
-        } else {
-            Serial.println(F("disabled"));
-        }
+        printConfigPinInfo(PIN_MANUAL_PARAMETER_MODE, F("AnalogParameterInputMode"),&Serial);
     }
 
 #if defined(ENABLE_ACCELERATOR_INPUT)
@@ -1694,4 +1684,22 @@ void printBigNumber4(byte digit, byte leftAdjust) {
 //        Serial.print('|');
     }
 //    Serial.println();
+}
+
+void printConfigPinInfo(uint8_t aConfigPinNumber, const __FlashStringHelper *aConfigPinDescription, Print *aSerial) {
+    aSerial->print(F("Pin "));
+    aSerial->print(aConfigPinNumber);
+    aSerial->print(F(" is"));
+    bool tIsEnabled = digitalRead(aConfigPinNumber) == LOW;
+    if (!tIsEnabled) {
+        aSerial->print(F(" not"));
+    }
+    aSerial->print(F(" connected to ground, "));
+    aSerial->print(aConfigPinDescription);
+    aSerial->print(F(" is "));
+    if (tIsEnabled) {
+        aSerial->println(F("enabled"));
+    } else {
+        aSerial->println(F("disabled"));
+    }
 }

@@ -3,8 +3,6 @@
 # [OpenledRace](https://github.com/ArminJo/OpenledRace)
 An implementation of the OpenledRace Arduino game
 
-### Version 1.2.0
-
 [![Badge License: GPLv3](https://img.shields.io/badge/License-GPLv3-brightgreen.svg)](https://www.gnu.org/licenses/gpl-3.0)
  &nbsp; &nbsp; 
 [![Badge Version](https://img.shields.io/github/v/release/ArminJo/OpenledRace?include_prereleases&color=yellow&logo=DocuSign&logoColor=white)](https://github.com/ArminJo/OpenledRace/releases/latest)
@@ -14,8 +12,8 @@ An implementation of the OpenledRace Arduino game
 [![Badge Build Status](https://github.com/ArminJo/OpenledRace/workflows/TestCompile/badge.svg)](https://github.com/ArminJo/OpenledRace/actions)
  &nbsp; &nbsp; 
 ![Badge Hit Counter](https://visitor-badge.laobi.icu/badge?page_id=ArminJo_OpenledRace)
-
 <br/>
+
 **Extended version** of the OpenLedRace "version Basic for PCB Rome Edition. 2 Player, without Boxes Track".<br/>
 Available as [OpenLedRace example](https://github.com/ArminJo/NeoPatterns/tree/master/examples/OpenLedRace) in the [NeoPatterns library](https://github.com/ArminJo/NeoPatterns).
 
