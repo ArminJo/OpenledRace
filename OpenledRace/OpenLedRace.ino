@@ -116,7 +116,7 @@
 #include "LongUnion.h"
 
 #define LCD_I2C_ADDRESS 0x27    // Default LCD address is 0x27 for a 20 chars and 4 line / 2004 display
-#include "LiquidCrystal_I2C.h"  // Use an up to date library version which has the init method
+#include "LiquidCrystal_I2C.hpp"  // Include source! Use only the modified version delivered with this program.
 LiquidCrystal_I2C myLCD(LCD_I2C_ADDRESS, 20, 4);
 void printBigNumber4(byte digit, byte leftAdjust);
 void initBigNumbers();
@@ -662,11 +662,14 @@ public:
             AcceleratorInput.setI2CAddress(MPU6050_ADDRESS_AD0_HIGH);
         }
         // use maximum filtering. It prefers slow and huge movements :-)
-
         if (!AcceleratorInput.initMPU6050AndCalculateAllOffsetsAndWait(20, MPU6050_BAND_5_HZ)) {
             AcceleratorInputConnected = false;
             Serial.print(F("No MPU6050 IMU connected at address 0x"));
+#if defined(USE_SOFT_I2C_MASTER)
             Serial.print(AcceleratorInput.I2CAddress >> 1, HEX);
+#else
+            Serial.print(AcceleratorInput.I2CAddress, HEX);
+#endif
             Serial.print(F(" for car "));
             Serial.print(aNumberOfThisCar);
             Serial.println(F(". You may want to disable \"#define ENABLE_ACCELERATOR_INPUT\""));
@@ -1541,6 +1544,20 @@ void checkForLCDConnected() {
         sSerialLCDAvailable = true;
     }
     i2c_stop();
+#elif defined(USE_SOFT_WIRE)
+#warning SoftWire does not support dynamically check of connection because it has no setWireTimeout() function. You should use "#define USE_SOFT_I2C_MASTER" instead.
+#else
+    Wire.setWireTimeout(); // Sets default timeout of 25 ms.
+    Wire.beginTransmission(LCD_I2C_ADDRESS);
+    if (Wire.endTransmission(true) != 0) {
+        if (!sOnlyPlotterOutput) {
+            Serial.println(F("No I2C LCD connected at address " STR(LCD_I2C_ADDRESS)));
+        }
+        playError();
+        sSerialLCDAvailable = false;
+    } else {
+        sSerialLCDAvailable = true;
+    }
 #endif
 }
 

@@ -163,6 +163,14 @@ bool MPU6050IMUData::initMPU6050(uint8_t aSampleRateDivider, mpu6050_bandwidth_t
         return false;
     }
     i2c_stop();
+#elif defined(USE_SOFT_WIRE)
+#warning SoftWire does not support dynamically check of connection because it has no setWireTimeout() function. You should use "#define USE_SOFT_I2C_MASTER" instead.
+#else
+    Wire.setWireTimeout(); // Sets default timeout of 25 ms.
+    Wire.beginTransmission(I2CAddress);
+    if (Wire.endTransmission(true) != 0) {
+        return false;
+    }
 #endif
     MPU6050WriteByte(MPU6050_RA_PWR_MGMT_1, MPU6050_CLOCK_PLL_ZGYRO); // use recommended gyro reference: PLL with Z axis gyroscope reference
     MPU6050WriteByte(MPU6050_RA_SMPLRT_DIV, aSampleRateDivider - 1); // parameter 0 => divider 1, 19 -> divider 20
