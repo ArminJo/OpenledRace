@@ -268,7 +268,7 @@ void playShutdownMelody();
 void playMelodyAndShutdown();
 void checkAndHandleWinner();
 void checkForOvertakingLeaderCar();
-bool checkForInputToStart();
+bool checkAllInputs();
 void printConfigPinInfo(uint8_t aConfigPinNumber, const __FlashStringHelper *aConfigPinDescription, Print *aSerial);
 
 extern volatile unsigned long timer0_millis; // Used for ATmega328P to adjust for missed millis interrupts
@@ -824,7 +824,7 @@ public:
 #if defined(TIMING_TEST)
                 digitalWrite(PIN_TIMING, LOW);
 #endif
-            if (checkInput()) {
+            if (checkAllInputs()) {
                 stopPlayRtttl(); // to stop in a deterministic fashion
                 tReturnValue = true;
             }
@@ -1165,7 +1165,7 @@ void setup() {
 // wait for animation to end
     while (track.updateAndShowAlsoAllPartialPatterns()) {
         yield();
-        if (checkForInputToStart()) {
+        if (checkAllInputs()) {
             break;
         }
     }
@@ -1217,7 +1217,7 @@ void loop() {
             }
         }
 
-        checkForInputToStart();
+        checkAllInputs();
         track.updateAndShowAlsoAllPartialPatterns(); // Show animation
 
     } else if (sLoopMode == MODE_START) {
@@ -1289,6 +1289,7 @@ void loop() {
             myLCD.clear();
             printStartMessage();
             resetAndShowTrackWithoutCars();
+            Serial.println(F("Reset game button pressed -> start a new race"));
             sLoopMode = MODE_IDLE;
         }
     }
@@ -1324,14 +1325,17 @@ void printStartMessage() {
 }
 
 /*
- * Wait for start (first button pressed or IMU moved)
+ * @return true if any button pressed or IMU moved
  */
-bool checkForInputToStart() {
+bool checkAllInputs() {
     for (uint_fast8_t i = 0; i < NUMBER_OF_CARS; ++i) {
         if (cars[i].checkInput()) {
             sLoopMode = MODE_START;
             return true;
         }
+    }
+    if (!digitalRead(PIN_RESET_GAME_BUTTON)) {
+        return true;
     }
     return false;
 }
