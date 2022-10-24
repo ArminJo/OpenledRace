@@ -118,8 +118,11 @@
 #define LCD_I2C_ADDRESS 0x27    // Default LCD address is 0x27 for a 20 chars and 4 line / 2004 display
 #include "LiquidCrystal_I2C.hpp"  // Include source! Use only the modified version delivered with this program.
 LiquidCrystal_I2C myLCD(LCD_I2C_ADDRESS, 20, 4);
-void printBigNumber4(byte digit, byte leftAdjust);
-void initBigNumbers();
+#define USE_SERIAL_2004_LCD
+#include "LCDBigNumbers.hpp" // Include sources for LCD big number generation
+
+LCDBigNumbers bigNumberLCD(&myLCD, BIG_NUMBERS_FONT_3_COLUMN_4_ROWS_VARIANT_1);
+
 void checkForLCDConnected();
 bool sSerialLCDAvailable;
 
@@ -965,7 +968,7 @@ public:
             }
 #endif
             if (sSerialLCDAvailable) {
-                printBigNumber4(Laps, ((NumberOfThisCar - 1) * 13) + 2); // red is left, green is right
+                bigNumberLCD.writeAt(Laps, ((NumberOfThisCar - 1) * 13) + 2, 0); // red is left, green is right
             }
             tRetval = CAR_LAP_CONDITION;
         }
@@ -1067,7 +1070,7 @@ void setup() {
         Serial.println(
                 F(
                         "Connect pin " STR(PIN_ONLY_PLOTTER_OUTPUT) " to ground, to suppress such prints not suited for Arduino plotter"));
-        printConfigPinInfo(PIN_MANUAL_PARAMETER_MODE, F("AnalogParameterInputMode"),&Serial);
+        printConfigPinInfo(PIN_MANUAL_PARAMETER_MODE, F("AnalogParameterInputMode"), &Serial);
     }
 
 #if defined(ENABLE_ACCELERATOR_INPUT)
@@ -1090,7 +1093,7 @@ void setup() {
         myLCD.print(F("Open LED Race"));
         myLCD.setCursor(0, 1);
         myLCD.print(F(VERSION_EXAMPLE " " __DATE__));
-        initBigNumbers();
+        bigNumberLCD.begin(); // Creates custom character used for generating big numbers
     }
 #endif
 
@@ -1513,7 +1516,7 @@ void startRace() {
             Serial.println(tCountDown);
         }
         if (sSerialLCDAvailable) {
-            printBigNumber4(tCountDown, 9);
+            bigNumberLCD.writeAt(tCountDown, 9);
         }
     }
 
@@ -1527,8 +1530,8 @@ void startRace() {
     if (sSerialLCDAvailable) {
         // print initial lap counters
         myLCD.clear();
-        printBigNumber4(0, 2);
-        printBigNumber4(0, 15);
+        bigNumberLCD.writeAt(0, 2);
+        bigNumberLCD.writeAt(0, 15);
     }
 }
 
@@ -1563,148 +1566,6 @@ void checkForLCDConnected() {
         sSerialLCDAvailable = true;
     }
 #endif
-}
-
-/*
- * Custom pattern used to compose the big numbers
- * found at: http://woodsgood.ca/projects/2015/03/06/3-4-line-big-font-numerals/
- * Another big font is here: https://forum.arduino.cc/t/wie-bekommt-man-solch-grosse-zahlen-hin/986148/12
- *                           https://wokwi.com/projects/330214358116205138
- */
-// !!! Must be without comment and closed by @formatter:on
-// @formatter:off
-#if defined BIG_NUMBERS_ALTERNATIVE
-const uint8_t LCDCustomPatterns[][8] PROGMEM = { {
-          B00000,
-          B00000,
-          B00000,
-          B00000,
-          B00001,
-          B00111,
-          B01111,
-          B11111,
-        }, // char 0: bottom right triangle
-        {
-          B00000,
-          B00000,
-          B00000,
-          B00000,
-          B11111,
-          B11111,
-          B11111,
-          B11111,
-        },      // char 1: bottom block
-        {
-          B00000,
-          B00000,
-          B00000,
-          B00000,
-          B10000,
-          B11100,
-          B11110,
-          B11111,
-        },      // char 2: bottom left triangle
-        {
-          B11111,
-          B01111,
-          B00111,
-          B00001,
-          B00000,
-          B00000,
-          B00000,
-          B00000,
-        },      // char 3: top right triangle
-        {
-          B11111,
-          B11111,
-          B11111,
-          B11111,
-          B00000,
-          B00000,
-          B00000,
-          B00000,
-        },      // char 4: upper block
-        {
-          B11111,
-          B11110,
-          B11100,
-          B10000,
-          B00000,
-          B00000,
-          B00000,
-          B00000,
-        },      // char 5: top left triangle
-        {
-          B11111,
-          B11111,
-          B11111,
-          B11111,
-          B11111,
-          B01111,
-          B00111,
-          B00001,
-        },      // char 6: full top right triangle
-        {
-          B11111,
-          B11111,
-          B11111,
-          B11111,
-          B11111,
-          B11110,
-          B11100,
-          B10000,
-        }       // char 7: full top left triangle
-};
-
-const char bigNumbers4[][30] PROGMEM = {                         // 4-line numbers
-//         0               1               2               3               4              5               6                7               8               9
-    {0x00,0x01,0x02, 0xFE,0x00,0x01, 0x00,0x01,0x02, 0x00,0x01,0x02, 0x00,0xFE,0x01, 0x01,0x01,0x01, 0x00,0x01,0x02, 0x01,0x01,0x01, 0x00,0x01,0x02, 0x00,0x01,0x02},
-    {0xFF,0x00,0xFF, 0xFE,0x05,0xFF, 0x04,0x00,0x07, 0x04,0x00,0x07, 0xFF,0xFE,0xFF, 0x06,0x01,0x02, 0xFF,0x01,0x02, 0xFE,0x00,0x07, 0x06,0x01,0x07, 0x06,0x01,0xFF},
-    {0xFF,0x05,0xFF, 0xFE,0xFE,0xFF, 0xFF,0x05,0xFE, 0x01,0x03,0xFF, 0x04,0x04,0xFF, 0x01,0xFE,0xFF, 0xFF,0xFE,0xFF, 0xFF,0x05,0xFE, 0xFF,0xFE,0xFF, 0xFE,0xFE,0xFF},
-    {0x03,0x04,0x05, 0xFE,0xFE,0x04, 0x04,0x04,0x04, 0x03,0x04,0x05, 0xFE,0xFE,0x04, 0x03,0x04,0x05, 0x03,0x04,0x05, 0x04,0xFE,0xFE, 0x03,0x04,0x05, 0x03,0x04,0x05}
-};
-
-#else
-const uint8_t LCDCustomPatterns[][8] PROGMEM = { { 0x01, 0x07, 0x0F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F }, // char 0: bottom right triangle
-        { 0x00, 0x00, 0x00, 0x00, 0x1F, 0x1F, 0x1F, 0x1F },      // char 1: bottom block
-        { 0x10, 0x1C, 0x1E, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F },      // char 2: bottom left triangle
-        { 0x1F, 0x0F, 0x07, 0x01, 0x00, 0x00, 0x00, 0x00 },      // char 3: top right triangle
-        { 0x1F, 0x1E, 0x1C, 0x10, 0x00, 0x00, 0x00, 0x00 },      // char 4: top left triangle
-        { 0x1F, 0x1F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x00 },      // char 5: upper block
-        { 0x1F, 0x1F, 0x1E, 0x1C, 0x18, 0x18, 0x10, 0x10 },      // char 6: full top right triangle Used only once in 7
-        { 0x01, 0x07, 0x0F, 0x1F, 0x00, 0x00, 0x00, 0x00 }       // char 7: top right triangle
-};
-
-
-const char bigNumbers4[][30] PROGMEM = {                         // 4-line numbers
-//         0               1               2               3               4              5               6                7               8               9
-    {0x00,0x05,0x02, 0x07,0xFF,0xFE, 0x07,0x05,0x02, 0x07,0x05,0x02, 0xFF,0xFE,0xFF, 0xFF,0x05,0x05, 0x00,0x05,0x02, 0x05,0x05,0xFF, 0x00,0x05,0x02, 0x00,0x05,0x02},
-    {0xFF,0xFE,0xFF, 0xFE,0xFF,0xFE, 0x01,0x01,0xFF, 0xFE,0x01,0xFF, 0xFF,0x01,0xFF, 0xFF,0x01,0x01, 0xFF,0x01,0x01, 0xFE,0x00,0x06, 0xFF,0x01,0xFF, 0xFF,0x01,0xFF},
-    {0xFF,0xFE,0xFF, 0xFE,0xFF,0xFE, 0xFF,0xFE,0xFE, 0xFE,0xFE,0xFF, 0xFE,0xFE,0xFF, 0xFE,0xFE,0xFF, 0xFF,0xFE,0xFF, 0xFE,0xFF,0xFE, 0xFF,0xFE,0xFF, 0xFE,0xFE,0xFF},
-    {0x03,0x05,0x04, 0xFE,0x05,0xFE, 0x05,0x05,0x05, 0x03,0x05,0x04, 0xFE,0xFE,0x05, 0x03,0x05,0x04, 0x03,0x05,0x04, 0xFE,0x05,0xFE, 0x03,0x05,0x04, 0x03,0x05,0x04}
-};
-#endif
-// @formatter:on
-void initBigNumbers() {
-    for (uint_fast8_t i = 0; i < 8; i++) {                     // create 8 custom characters
-        myLCD.createChar(i, (const char*) &LCDCustomPatterns[i]);
-    }
-}
-
-void printBigNumber4(byte digit, byte leftAdjust) {
-//    Serial.print(F("tCharacterIndex="));
-    byte numIndex = digit * 3; // 3 bytes per digit
-    for (uint_fast8_t row = 0; row < 4; row++) {
-        myLCD.setCursor(leftAdjust, row);
-        for (byte i = 0; i < 3; i++) {
-            uint8_t tCharacterIndex = pgm_read_byte(&bigNumbers4[row][numIndex + i]);
-            myLCD.write(tCharacterIndex);
-//            Serial.print(' ');
-//            Serial.print(tCharacterIndex);
-        }
-//        Serial.print('|');
-    }
-//    Serial.println();
 }
 
 void printConfigPinInfo(uint8_t aConfigPinNumber, const __FlashStringHelper *aConfigPinDescription, Print *aSerial) {
