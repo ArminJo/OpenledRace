@@ -42,8 +42,8 @@
  *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *  See the GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
  *  along with this program. If not, see <http://www.gnu.org/licenses/gpl.html>.
@@ -98,8 +98,6 @@
 //#define BRIDGE_NO_NEOPATTERNS           // No patterns on bridge. Saves 13 bytes RAM
 //#define LOOP_NO_NEOPATTERNS             // No patterns on loop. Saves 4 bytes RAM
 
-#define USE_SOFT_I2C_MASTER // Saves 2110 bytes program memory and 200 bytes RAM compared with Arduino Wire
-
 #if defined(ENABLE_ACCELERATOR_INPUT)
 /*
  * Modifiers for the MPU6050IMUData library to save speed and space
@@ -107,10 +105,6 @@
 #define DO_NOT_USE_GYRO
 #define USE_ONLY_ACCEL_FLOATING_OFFSET
 #include "MPU6050IMUData.hpp" // this configures and includes SoftI2CMaster
-#else
-// No MPU6050, but SerialLCD -> configure and include SoftI2CMaster here
-#include "SoftI2CMasterConfig.h"
-#include "SoftI2CMaster.h"
 #endif // #if defined(ENABLE_ACCELERATOR_INPUT)
 
 #include "LongUnion.h"

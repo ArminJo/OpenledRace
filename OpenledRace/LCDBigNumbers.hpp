@@ -15,8 +15,8 @@
  *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *  See the GNU General Public License for more details.
 
  *  You should have received a copy of the GNU General Public License
  *  along with this program. If not, see <http://www.gnu.org/licenses/gpl.html>.
@@ -28,7 +28,8 @@
 
 #include <Arduino.h>
 
-//#define NO_GAP_BETWEEN_NUMBERS // Suppress the 1 column gap between two numbers while printing
+#define ONE_COLUMN_SPACE_CHARACTER      '|' // This character is printed as a one column space. Normal spaces are printed as a space with the width of the number.
+#define ONE_COLUMN_SPACE_STRING         "|" // This string is printed as a one column space. Normal spaces are printed as a space with the width of the number.
 
 //#define USE_PARALLEL_2004_LCD // Is default
 //#define USE_PARALLEL_1602_LCD
@@ -76,6 +77,8 @@
 #define COLUMN_MASK     0x0C // Number of columns = shifted masked value + 1
 #define ROW_MASK        0x03 // Number of rows = masked value + 1
 #define VARIANT_MASK    0x30
+
+//#define LOCAL_DEBUG // To debug/understand the writeBigNumber() function
 
 // !!! Must be without comment and closed by @formatter:on
 // @formatter:off
@@ -410,10 +413,17 @@ public:
             tFontArrayOffset = 2;
             tCharacterWidth = 1;
         } else if (aNumber == ' ') {
+            tCharacterWidth = NumberWidth;
+        } else if (aNumber == ONE_COLUMN_SPACE_CHARACTER) {
+            // print a one column space
             tCharacterWidth = 1;
+            aNumber = ' ';
         } else {
             if (aNumber > 9) {
                 aNumber -= '0'; // convert ASCII value to number
+            }
+            if (aNumber > 9) {
+                aNumber = ' '; // convert all non numbers to spaces with the width of the number
             }
             tCharacterWidth = NumberWidth;
             tFontArrayOffset = NUMBER_OF_SPECIAL_CHARACTERS_IN_FONT_ARRAY + (aNumber * tCharacterWidth);
@@ -434,7 +444,7 @@ public:
             for (uint_fast8_t i = 0; i < tCharacterWidth; i++) {
                 uint8_t tCharacterIndex;
                 if (aNumber == ' ') {
-                    tCharacterIndex = 0xFE; // Blank
+                    tCharacterIndex = aNumber; // Blank
                 } else {
                     tCharacterIndex = pgm_read_byte(tArrayPtr);
                 }
@@ -465,11 +475,11 @@ public:
     /**
      * Draws a big digit of size aNumberWidth x aNumberHeight
      * @param aNumber - Number to display, if > 9 a blank character is drawn
-     * @param aLeftStartColumnIndex - Starts with 0, no check!
+     * @param aUpperLeftColumnIndex - Starts with 0, no check!
      * @param aStartRowIndex - Starts with 0, no check!
      */
-    void writeAt(uint8_t aNumber, uint8_t aLeftStartColumnIndex, uint8_t aStartRowIndex = 0) {
-        setBigNumberCursor(aLeftStartColumnIndex, aStartRowIndex);
+    void writeAt(uint8_t aNumber, uint8_t aUpperLeftColumnIndex, uint8_t aUpperLeftRowIndex = 0) {
+        setBigNumberCursor(aUpperLeftColumnIndex, aUpperLeftRowIndex);
         writeBigNumber(aNumber);
     }
 
@@ -495,6 +505,21 @@ void clearLine(LiquidCrystal_I2C *aLCD, uint_fast8_t aLineNumber)
     aLCD->setCursor(0, aLineNumber);
     printSpaces(aLCD, LCD_COLUMNS);
     aLCD->setCursor(0, aLineNumber);
+}
+
+#if defined(USE_PARALLEL_LCD)
+size_t printHex(LiquidCrystal *aLCD, uint16_t aHexByteValue)
+#else
+size_t printHex(LiquidCrystal_I2C *aLCD, uint16_t aHexByteValue)
+#endif
+        {
+    aLCD->print(F("0x"));
+    size_t tPrintSize = 2;
+    if (aHexByteValue < 0x10 || (aHexByteValue > 0x100 && aHexByteValue < 0x1000)) {
+        aLCD->print('0'); // leading 0
+        tPrintSize++;
+    }
+    return aLCD->print(aHexByteValue, HEX) + tPrintSize;
 }
 
 /*
@@ -559,17 +584,19 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
      * 1 X 2
      */
     aLCD->clear(); // Clear display
+    // Allocate object
     LCDBigNumbers bigNumberLCD(aLCD, BIG_NUMBERS_FONT_1_COLUMN_2_ROWS_VARIANT_1);
-    bigNumberLCD.begin();
-    bigNumberLCD.print(F("0123456789 -.:"));
+    bigNumberLCD.begin(); // Generate font symbols in LCD controller
+    bigNumberLCD.print(F("0123456789 -.:")); // no special space required, we have an 1 column font
     delay(DEFAULT_TEST_DELAY);
 
     /*
      * 2 X 2
      */
     aLCD->clear(); // Clear display
+    // Reconfigure existing object to hold another font
     bigNumberLCD.init(BIG_NUMBERS_FONT_2_COLUMN_2_ROWS_VARIANT_1);
-    bigNumberLCD.begin();
+    bigNumberLCD.begin(); // Generate font symbols in LCD controller
     bigNumberLCD.print(F("01234"));
 #if LCD_ROWS <= 2
     delay(DEFAULT_TEST_DELAY);
@@ -577,10 +604,10 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     bigNumberLCD.print(F("56789"));
     delay(DEFAULT_TEST_DELAY);
     bigNumberLCD.setBigNumberCursor(0);
-    bigNumberLCD.print(F("-.:  "));
+    bigNumberLCD.print(F("-.: "));
 #else
     bigNumberLCD.setBigNumberCursor(0, 2);
-    bigNumberLCD.print(F("56789 -.:"));
+    bigNumberLCD.print(F("56789" ONE_COLUMN_SPACE_STRING "-.:"));
 #endif
     delay(DEFAULT_TEST_DELAY);
 
@@ -598,7 +625,7 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     bigNumberLCD.print(F("4567"));
     delay(DEFAULT_TEST_DELAY);
     bigNumberLCD.setBigNumberCursor(0);
-    bigNumberLCD.print(F("89 -.:   "));
+    bigNumberLCD.print(F("89" ONE_COLUMN_SPACE_STRING "-.: "));
 #else
     bigNumberLCD.print(F("01234"));
     bigNumberLCD.setBigNumberCursor(0, 2);
@@ -608,7 +635,7 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     aLCD->clear(); // Clear display
     // Print "-47.11 :"
     bigNumberLCD.setBigNumberCursor(0);
-    bigNumberLCD.print(F("-- 47.11"));
+    bigNumberLCD.print(F("--" ONE_COLUMN_SPACE_STRING "47.11"));
     bigNumberLCD.writeAt(':', 19); // Keep in mind that numbers always have a trailing but no leading gap.
 #endif
 
@@ -627,10 +654,10 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     bigNumberLCD.print(F("56789"));
     delay(DEFAULT_TEST_DELAY);
     bigNumberLCD.setBigNumberCursor(0);
-    bigNumberLCD.print(F("-.:   "));
+    bigNumberLCD.print(F("-.: "));
 #else
     bigNumberLCD.setBigNumberCursor(0, 2);
-    bigNumberLCD.print(F("56789 -.:"));
+    bigNumberLCD.print(F("56789" ONE_COLUMN_SPACE_STRING "-.:"));
 #endif
     delay(DEFAULT_TEST_DELAY);
 
@@ -647,10 +674,10 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     bigNumberLCD.print(F("56789"));
     delay(DEFAULT_TEST_DELAY);
     bigNumberLCD.setBigNumberCursor(0);
-    bigNumberLCD.print(F("-.:   "));
+    bigNumberLCD.print(F("-.: "));
 #else
     bigNumberLCD.setBigNumberCursor(0, 2);
-    bigNumberLCD.print(F("56789 -.:"));
+    bigNumberLCD.print(F("56789" ONE_COLUMN_SPACE_STRING "-.:"));
 #endif
     delay(DEFAULT_TEST_DELAY);
 
@@ -668,7 +695,7 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     bigNumberLCD.print(F("01234"));
     delay(DEFAULT_TEST_DELAY);
     bigNumberLCD.setBigNumberCursor(0, 1);
-    bigNumberLCD.print(F("56789 -.:"));
+    bigNumberLCD.print(F("56789" ONE_COLUMN_SPACE_STRING "-.:"));
     delay(DEFAULT_TEST_DELAY);
 
     /*
@@ -681,7 +708,7 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     bigNumberLCD.print(F("01234"));
     delay(DEFAULT_TEST_DELAY);
     bigNumberLCD.setBigNumberCursor(0, 1);
-    bigNumberLCD.print(F("56789 -.:"));
+    bigNumberLCD.print(F("56789" ONE_COLUMN_SPACE_STRING "-.:"));
     delay(DEFAULT_TEST_DELAY);
 
     /*
@@ -700,7 +727,7 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     aLCD->clear(); // Clear display
     // Print "-47.11 :"
     bigNumberLCD.setBigNumberCursor(0, 1);
-    bigNumberLCD.print(F("-- 47.11"));
+    bigNumberLCD.print(F("--" ONE_COLUMN_SPACE_STRING "47.11"));
     bigNumberLCD.writeAt(':', 19, 1); // Keep in mind that numbers always have a trailing but no leading gap.
     delay(DEFAULT_TEST_DELAY);
 
@@ -722,7 +749,7 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     aLCD->clear(); // Clear display
     // Print "-47.11 :"
     bigNumberLCD.setBigNumberCursor(0);
-    bigNumberLCD.print(F("-- 47.11"));
+    bigNumberLCD.print(F("--" ONE_COLUMN_SPACE_STRING "47.11"));
     bigNumberLCD.writeAt(':', 19); // Keep in mind that numbers always have a trailing but no leading gap.
     delay(DEFAULT_TEST_DELAY);
 
@@ -741,10 +768,13 @@ void testBigNumbers(LiquidCrystal_I2C *aLCD)
     aLCD->clear(); // Clear display
     // Print "-47.11 :"
     bigNumberLCD.setBigNumberCursor(0);
-    bigNumberLCD.print(F("-- 47.11"));
+    bigNumberLCD.print(F("--" ONE_COLUMN_SPACE_STRING "47.11"));
     bigNumberLCD.writeAt(':', 19); // Keep in mind that numbers always have a trailing but no leading gap.
     delay(DEFAULT_TEST_DELAY);
 #endif // LCD_ROWS > 2
 }
 
+#if defined(LOCAL_DEBUG)
+#undef LOCAL_DEBUG
+#endif
 #endif // _LCD_BIG_NUMBERS_HPP

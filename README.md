@@ -79,8 +79,8 @@ You also need to install *NeoPatterns* and *PlayRtttl* library under "Tools -> M
 - 2 Arcade pushuttons + 2x2 meter 2-wire cable
 - 2 Handlebar ends with foam grips to mount the pushuttons
 - 2004 LCD with serial I2C interface adapter
-- Speaker > 32 ohm
-- 4.7 uF capacitor for speaker
+- Speaker > 32 &ohm;
+- 4.7 &micro;F capacitor for speaker
 - Power supply - e.g. a 18650 battery + holder
 
 ### Recommended 
