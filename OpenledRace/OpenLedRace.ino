@@ -29,7 +29,7 @@
  *  You need to install "Adafruit NeoPixel" library under "Tools -> Manage Libraries..." or "Ctrl+Shift+I" -> use "neoPixel" as filter string
  *  You also need to install "NeoPatterns" and "PlayRtttl" library under "Tools -> Manage Libraries..." or "Ctrl+Shift+I"
  *
- *  Copyright (C) 2020-2022  Armin Joachimsmeyer
+ *  Copyright (C) 2020-2023  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of OpenledRace https://github.com/ArminJo/OpenledRace.
@@ -84,7 +84,8 @@
 // for hunting errors
 //#include "AvrTracing.hpp"
 
-#define VERSION_EXAMPLE "1.2"
+#define VERSION_EXAMPLE "1.3"
+// 1.3 VU Bar animations - work in progress
 // 1.2 Improvements from Hannover Maker Faire
 // 1.1 Hannover Maker Faire version
 
@@ -122,18 +123,19 @@ void checkForLCDConnected();
 bool sSerialLCDAvailable;
 
 /*
- * Pin layout
+ * Pin layout - adapt it to your need
  */
-#define PIN_PLAYER_2_BUTTON     2
-#define PIN_PLAYER_2_VU_BAR     3
-#define PIN_PLAYER_1_BUTTON     4
-#define PIN_PLAYER_1_VU_BAR     5
+#define PIN_PLAYER_1_VU_BAR     2 // RED
+#define PIN_PLAYER_2_VU_BAR     3// GREEN
+#define PIN_PLAYER_1_BUTTON     4 // RED
+#define PIN_PLAYER_2_BUTTON     5 // GREEN
+
 #if !defined(ENABLE_ACCELERATOR_INPUT)
 #define PIN_PLAYER_3_BUTTON     6
 #endif
 #define PIN_RESET_GAME_BUTTON   7
 
-#define PIN_NEOPIXEL            8
+#define PIN_NEOPIXEL_TRACK      8
 #if defined(TIMING_TEST)
 #define PIN_TIMING              9
 #endif
@@ -195,7 +197,7 @@ const char Car3ColorString[] PROGMEM = "BLUE";
 #define LOOP_DIMMED_COLOR       COLOR32(8,0,8)
 #define GAMMA_FOR_DIMMED_VALUE  160
 
-NeoPatterns track = NeoPatterns(NUMBER_OF_TRACK_PIXELS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+NeoPatterns track = NeoPatterns(NUMBER_OF_TRACK_PIXELS, PIN_NEOPIXEL_TRACK, NEO_GRB + NEO_KHZ800);
 
 #if defined(USE_ACCELERATION_NEOPIXEL_BARS)
 //#define ACCELERATION_BAR_SCALE_VALUE    100
@@ -231,7 +233,8 @@ bool sSoundEnabled = true; // not really used yet - always true
 #define LAPS_PER_RACE                        255
 #else
 #define START_ANIMATION_MILLIS              1500 // The duration of the start animation
-#define WINNER_ANIMATION_DELAY_MILLIS       4000 // The time to show the end of race situation
+#define WINNER_ANIMATION_DELAY_MILLIS       2000 // The time to show the end of race situation
+#define WINNER_MINIMAL_ANIMATION_DURATION_MILLIS 2000 // The minimum time time to show the winner animation + sound
 #define LAPS_PER_RACE                          5
 #endif
 
@@ -670,6 +673,7 @@ public:
                 myLCD.setCursor(0, aNumberOfThisCar + 1);
                 myLCD.print(F("No IMU for car "));
                 myLCD.print(aNumberOfThisCar);
+                myLCD.print(' '); // to overwrite button info
             }
             playError();
         } else {
@@ -791,7 +795,7 @@ public:
     }
 
     /*
-     * Then Play a winner melody and run animations with the car color on the track
+     * Play a winner melody and run animations with the car color on the track
      * Returns if melody ends
      * You can stop melody and animation by pressing the car button.
      * @return true if stopped by user input
@@ -800,6 +804,7 @@ public:
         startPlayRtttlPGM(PIN_BUZZER, WinnerMelody);
         TrackPtr->Stripes(Color, 2, COLOR32_BLACK, 8, 300, 50, DIRECTION_UP);
         bool tReturnValue = false;
+        auto tStartMillis = millis();
 
         while (updatePlayRtttl()) {
 #if defined(TIMING_TEST)
@@ -817,7 +822,8 @@ public:
 #if defined(TIMING_TEST)
                 digitalWrite(PIN_TIMING, LOW);
 #endif
-            if (checkAllInputs()) {
+            if ((millis() - tStartMillis > WINNER_MINIMAL_ANIMATION_DURATION_MILLIS) && checkAllInputs()) {
+                // minimal animation time was reached and input was activated
                 stopPlayRtttl(); // to stop in a deterministic fashion
                 tReturnValue = true;
             }
@@ -866,7 +872,8 @@ public:
 #if defined(USE_ACCELERATION_NEOPIXEL_BARS)
         AcceleratorLowPassValue += (((int16_t) (tAcceleration - AcceleratorLowPassValue))) >> 3;
         // scale it so that 100 -> 8
-        AccelerationCommonNeopixelBar.drawBar(AcceleratorLowPassValue / (100 / 8), Color);
+        // Parameter NumberOfThisCar == 1 has the effect, that bar for car 2 can be mounted upside down
+        AccelerationCommonNeopixelBar.drawBar(AcceleratorLowPassValue / (100 / 8), Color, NumberOfThisCar == 1);
         AccelerationCommonNeopixelBar.setPin(AccelerationBarPin);
         AccelerationCommonNeopixelBar.show();
 #endif
@@ -1505,7 +1512,22 @@ void startRace() {
     }
     for (int tCountDown = 4; tCountDown >= 0; tCountDown--) {
         // delay at start of loop to enable fast start after last countdown
-        delay(1000);
+
+        delay(900);
+        AccelerationCommonNeopixelBar.drawBar(8, CAR_1_COLOR);
+        AccelerationCommonNeopixelBar.setPin(PIN_PLAYER_1_VU_BAR);
+        AccelerationCommonNeopixelBar.show();
+        AccelerationCommonNeopixelBar.drawBar(8, CAR_2_COLOR);
+        AccelerationCommonNeopixelBar.setPin(PIN_PLAYER_2_VU_BAR);
+        AccelerationCommonNeopixelBar.show();
+
+        delay(100);
+        AccelerationCommonNeopixelBar.clear();
+        AccelerationCommonNeopixelBar.setPin(PIN_PLAYER_1_VU_BAR);
+        AccelerationCommonNeopixelBar.show();
+        AccelerationCommonNeopixelBar.setPin(PIN_PLAYER_2_VU_BAR);
+        AccelerationCommonNeopixelBar.show();
+
         track.setPixelColor(tIndex + (2 * tCountDown), COLOR32_RED);
         track.setPixelColor(tIndex + (2 * tCountDown) + 1, COLOR32_RED);
         track.show();
