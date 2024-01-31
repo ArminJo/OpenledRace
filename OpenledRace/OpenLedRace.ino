@@ -85,7 +85,8 @@
 //#include "AvrTracing.hpp"
 
 #define VERSION_EXAMPLE "1.3"
-// 1.3 VU Bar animations - work in progress
+// 1.4 - work in progress
+// 1.3 Moved Bridge and loop, VU Bar animations
 // 1.2 Improvements from Hannover Maker Faire
 // 1.1 Hannover Maker Faire version
 
@@ -147,7 +148,7 @@ bool sSerialLCDAvailable;
 #define PIN_FRICTION            A1
 #define PIN_DRAG                A2
 
-#define PIN_ONLY_PLOTTER_OUTPUT 12 // Verbose output to Arduino Serial Monitor is disabled, if connected to ground. This is intended for Arduino Plotter mode.
+#define ONLY_PLOTTER_OUTPUT_PIN 12 // Verbose output to Arduino Serial Monitor is disabled, if connected to ground. This is intended for Arduino Plotter mode.
 bool sOnlyPlotterOutput;
 
 #define ANALOG_OFFSET   20   // Bias/offset to get real 0 analog value, because of high LED current on Breadboard, which cause a ground bias.
@@ -271,7 +272,7 @@ void playMelodyAndShutdown();
 void checkAndHandleWinner();
 void checkForOvertakingLeaderCar();
 bool checkAllInputs();
-void printConfigPinInfo(uint8_t aConfigPinNumber, const __FlashStringHelper *aConfigPinDescription, Print *aSerial);
+void printConfigPinInfo(Print *aSerial, uint8_t aConfigPinNumber, const __FlashStringHelper *aConfigPinDescription);
 
 extern volatile unsigned long timer0_millis; // Used for ATmega328P to adjust for missed millis interrupts
 
@@ -1043,7 +1044,7 @@ void setup() {
 
     pinMode(PIN_RESET_GAME_BUTTON, INPUT_PULLUP);
     pinMode(PIN_MANUAL_PARAMETER_MODE, INPUT_PULLUP);
-    pinMode(PIN_ONLY_PLOTTER_OUTPUT, INPUT_PULLUP);
+    pinMode(ONLY_PLOTTER_OUTPUT_PIN, INPUT_PULLUP);
 
 #if defined(TIMING_TEST)
     pinMode(PIN_TIMING, OUTPUT);
@@ -1058,7 +1059,7 @@ void setup() {
     delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
 
-    sOnlyPlotterOutput = !digitalRead(PIN_ONLY_PLOTTER_OUTPUT);
+    sOnlyPlotterOutput = !digitalRead(ONLY_PLOTTER_OUTPUT_PIN);
 
     if (!sOnlyPlotterOutput) {
 
@@ -1066,8 +1067,8 @@ void setup() {
         Serial.println(F("START " __FILE__ " from " __DATE__));
         Serial.println(
                 F(
-                        "Connect pin " STR(PIN_ONLY_PLOTTER_OUTPUT) " to ground, to suppress such prints not suited for Arduino plotter"));
-        printConfigPinInfo(PIN_MANUAL_PARAMETER_MODE, F("AnalogParameterInputMode"), &Serial);
+                        "Connect pin " STR(ONLY_PLOTTER_OUTPUT_PIN) " to ground, to suppress such prints not suited for Arduino plotter"));
+        printConfigPinInfo(&Serial, PIN_MANUAL_PARAMETER_MODE, F("AnalogParameterInputMode"));
     }
 
 #if defined(ENABLE_ACCELERATOR_INPUT)
@@ -1207,7 +1208,7 @@ void loop() {
     sNextLoopMillis += MILLISECONDS_PER_LOOP;
 
     sLoopCountForDebugPrint++;
-    sOnlyPlotterOutput = !digitalRead(PIN_ONLY_PLOTTER_OUTPUT);
+    sOnlyPlotterOutput = !digitalRead(ONLY_PLOTTER_OUTPUT_PIN);
 
 #if defined(INFO) && defined(__AVR__)
     if (!sOnlyPlotterOutput) {
@@ -1597,7 +1598,7 @@ void checkForLCDConnected() {
 #endif
 }
 
-void printConfigPinInfo(uint8_t aConfigPinNumber, const __FlashStringHelper *aConfigPinDescription, Print *aSerial) {
+void printConfigPinInfo(Print *aSerial, uint8_t aConfigPinNumber, const __FlashStringHelper *aConfigPinDescription) {
     aSerial->print(F("Pin "));
     aSerial->print(aConfigPinNumber);
     aSerial->print(F(" is"));
