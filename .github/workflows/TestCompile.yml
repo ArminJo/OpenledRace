@@ -25,16 +25,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@master
 
-      - name: Checkout custom library
-        uses: actions/checkout@master
-        with:
-          repository: ArminJo/NeoPatterns
-          ref: master
-          path: CustomNeoPatterns # must contain string "Custom"
+#      - name: Checkout custom library
+#        uses: actions/checkout@master
+#        with:
+#          repository: ArminJo/NeoPatterns
+#          ref: master
+#          path: CustomNeoPatterns # must contain string "Custom"
 
       - name: Compile all examples
         uses: ArminJo/arduino-test-compile@master
         with:
 #          required-libraries: Adafruit NeoPixel,PlayRtttl,SoftI2CMaster
-          required-libraries: Adafruit NeoPixel,PlayRtttl
+          required-libraries: Adafruit NeoPixel,PlayRtttl,NeoPatterns
 #          build-properties: -DSERIAL_RX_BUFFER_SIZE=8
