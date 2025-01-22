@@ -287,7 +287,8 @@ const uint8_t bigNumbers3x4_2[4][33] PROGMEM = {                         // 4-li
 class LCDBigNumbers: public Print {
 
 public:
-    virtual ~LCDBigNumbers(){}
+    virtual ~LCDBigNumbers() {
+    }
 #if defined(USE_PARALLEL_LCD)
     LiquidCrystal *LCD;
 #else

@@ -37,4 +37,4 @@ jobs:
         with:
 #          required-libraries: Adafruit NeoPixel,PlayRtttl,SoftI2CMaster
           required-libraries: Adafruit NeoPixel,PlayRtttl,NeoPatterns
-#          build-properties: -DSERIAL_RX_BUFFER_SIZE=8
+#          build-properties: '{ "All": "-DSERIAL_RX_BUFFER_SIZE=8" }'
