@@ -31,8 +31,7 @@
  *  You need to install "Adafruit NeoPixel" library under "Tools -> Manage Libraries..." or "Ctrl+Shift+I" -> use "neoPixel" as filter string
  *  You also need to install "NeoPatterns" and "PlayRtttl" library under "Tools -> Manage Libraries..." or "Ctrl+Shift+I"
  *
- *  Copyright (C) 2020-2025  Armin Joachimsmeyer
- *  armin.joachimsmeyer@gmail.com
+ *  Copyright (C) 2020-2026  Armin Joachimsmeyer
  *
  *  This file is part of OpenledRace https://github.com/ArminJo/OpenledRace.
  *  This file is part of NeoPatterns https://github.com/ArminJo/NeoPatterns.
@@ -67,7 +66,7 @@
 #include "PlayRtttl.hpp"
 
 /*
- * We enable only these 3 patterns to save program space
+ * We enable only these 3 NeoPatterns patterns to save RAM
  */
 #define ENABLE_PATTERN_SCANNER_EXTENDED
 #define ENABLE_PATTERN_COLOR_WIPE
@@ -77,27 +76,24 @@
 //#define TRACE
 //#define DEBUG
 #define INFO    // Enable additional informative output like e.g. offsets,
-#include "DebugLevel.h" // to propagate debug level
 
 #if defined(INFO) && defined(__AVR__)
-#include "AVRUtils.h" // for initStackFreeMeasurement() and printRAMInfo()
+#include "AVRUtils.h" // for initStackFreeMeasurement() and printRAMAndStackInfo()
 #endif
 
 // for hunting errors
 //#include "AvrTracing.hpp"
 
 #define VERSION_EXAMPLE "1.4"
-// 1.4 - work in progress
+// 1.4 Longer cars
 // 1.3 Moved Bridge and loop, VU Bar animations
 // 1.2 Improvements from Hannover Maker Faire
 // 1.1 Hannover Maker Faire version
 
-//#define BIG_NUMBERS_ALTERNATIVE         // use alternative font for big numbers
-
 //#define USE_NO_LCD                      // this suppresses the error tone and print if LCD was not found
 //#define TEST_MODE
 //#define TIMING_TEST
-#define ENABLE_ACCELERATOR_INPUT        // Enables readout of MPU6050 IMU as input. Saves 320 bytes program space and 10 bytes RAM.
+#define ENABLE_ACCELERATOR_INPUT        // Enables readout of MPU6050 IMU as input. Disabling saves 2220 bytes program space and 12 bytes RAM.
 #define USE_ACCELERATION_NEOPIXEL_BARS  // Shows the low pass value of user acceleration input (button or IMU) on an 8 Neopixel bar
 //#define BRIDGE_NO_NEOPATTERNS           // No patterns on bridge. Saves 13 bytes RAM
 //#define LOOP_NO_NEOPATTERNS             // No patterns on loop. Saves 4 bytes RAM
@@ -114,11 +110,10 @@
 
 #include "LongUnion.h"
 
-#define LCD_I2C_ADDRESS 0x27    // Default LCD address is 0x27 for a 20 chars and 4 line / 2004 display
-#include "LiquidCrystal_I2C.hpp"  // This defines USE_SOFT_I2C_MASTER, if SoftI2CMasterConfig.h is available. Use only the modified version delivered with this program!
-LiquidCrystal_I2C myLCD(LCD_I2C_ADDRESS, 20, 4);
 #define USE_SERIAL_2004_LCD // required by LCDBigNumbers.hpp
 #include "LCDBigNumbers.hpp" // Include sources for LCD big number generation
+#define LCD_I2C_ADDRESS 0x27    // Default LCD address is 0x27 for a 20 chars and 4 line / 2004 display
+LiquidCrystal_I2C myLCD(LCD_I2C_ADDRESS, LCD_COLUMNS, LCD_ROWS); // LCD_COLUMNS and LCD_ROWS are set by LCDBigNumbers.hpp depending on the defined display
 
 LCDBigNumbers BigNumbers(&myLCD, BIG_NUMBERS_FONT_3_COLUMN_4_ROWS_VARIANT_1);
 
@@ -141,7 +136,7 @@ bool sSerialLCDAvailable;
 
 #define PIN_START_END_GAME_BUTTON   7
 #define PIN_NEOPIXEL_TRACK      8
-#define PIN_START_BY_INPUT_DISABLE 9 // If high, game starts if car button is pressed or accelerator input is above ACCELERATOR_TRIGGER_VALUE, otherwise only by start button
+#define PIN_START_BY_INPUT_DISABLE 9 // If high, game starts if car button is pressed or accelerator input is above ACCELERATOR_TRIGGER_VALUE, if (active) low game starts only by start button
 #if defined(TIMING_TEST)
 #define PIN_TIMING              10
 #endif
@@ -173,9 +168,13 @@ bool sPrintCurrentDatasetToPlotterOutput;   // Print data for Arduino plotter, i
  * Maximum number of cars supported. Each car is individually activated at runtime
  * by first press of its button or movement of its accelerator input.
  */
-#if defined(ENABLE_ACCELERATOR_INPUT)
+#define CAR_INITIAL_LENGTH                  4
+#define CAR_INCREASE_OF_LENGTH_PER_LAP      1 // 0 = Constant length
+#if defined(ENABLE_ACCELERATOR_INPUT) || defined(USE_ACCELERATION_NEOPIXEL_BARS)
 #define NUMBER_OF_CARS            2 // Currently we can handle only 2 distinct accelerometers.
+#  if defined(ENABLE_ACCELERATOR_INPUT)
 #define ACCELERATOR_TRIGGER_VALUE 32 // The value of getAcceleratorValueShift8() to trigger a new race
+#  endif
 #else
 #define NUMBER_OF_CARS            3
 #endif
@@ -195,7 +194,6 @@ const char Car3ColorString[] PROGMEM = "BLUE";
 #define BRIDGE_1_PLATFORM_LENGTH 20 // > 0 for bridges with a ramp up a flat bridge and a ramp down
 #define BRIDGE_1_HEIGHT          15 // in pixel -> 45 degree slope here
 #define RAMP_COLOR               COLOR32_CYAN_QUARTER // COLOR32(0,64,64)
-#define RAMP_COLOR_DIMMED        COLOR32(0,8,8)
 
 /*
  * The loop
@@ -204,7 +202,6 @@ const char Car3ColorString[] PROGMEM = "BLUE";
 #define LOOP_1_UP_START         228
 #define LOOP_1_LENGTH            48 // in pixel
 #define LOOP_COLOR              COLOR32_PURPLE_QUARTER // COLOR32(64,0,64)
-#define LOOP_DIMMED_COLOR       COLOR32(8,0,8)
 #define GAMMA_FOR_DIMMED_VALUE  160
 
 NeoPatterns track = NeoPatterns(NUMBER_OF_TRACK_PIXELS, PIN_NEOPIXEL_TRACK, NEO_GRB + NEO_KHZ800);
@@ -231,7 +228,6 @@ NeoPixel AccelerationCommonNeopixelBar = NeoPixel(8, 0, NEO_GRB + NEO_KHZ800);
  */
 unsigned long sBeepEndMillis = 0; // for special sounds - overtaking and leap
 int sBeepFrequency = 0;
-bool sSoundEnabled = true; // not really used yet - always true
 
 /*
  * Race control
@@ -239,11 +235,12 @@ bool sSoundEnabled = true; // not really used yet - always true
 #if defined(TEST_MODE)
 #define START_ANIMATION_MILLIS               500 // The duration of the start animation
 #define WINNER_ANIMATION_DELAY_MILLIS       1000 // The time to show the end of race situation
+#define WINNER_MINIMAL_ANIMATION_DURATION_MILLIS 1000 // The minimum time time to show the winner animation + sound
 #define LAPS_PER_RACE                        255
 #else
 #define START_ANIMATION_MILLIS              1500 // The duration of the start animation
 #define WINNER_ANIMATION_DELAY_MILLIS       2000 // The time to show the end of race situation
-#define WINNER_MINIMAL_ANIMATION_DURATION_MILLIS 2000 // The minimum time time to show the winner animation + sound
+#define WINNER_MINIMAL_ANIMATION_DURATION_MILLIS 2000 // The minimum time to show the winner animation + sound
 #define LAPS_PER_RACE                          5
 #endif
 
@@ -259,7 +256,6 @@ uint8_t sIndexOfLeadingCar = 0; // To check for playing overtaking sound.
  * Car control
  * we get a press each 70 to 150 milliseconds / each 3th to 7th loop
  */
-#define ENERGY_PER_BUTTON_PRESS     0.2 // As pixel per loop
 #define FRICTION_PER_LOOP           0.006
 #define AERODYNAMIC_DRAG_PER_LOOP   0.0002 // can also be 0.0
 #define GRAVITY_FACTOR_FOR_MAP      0.0007 // gravity constant for gravity values from 0 to 100 => gravity 1 is 0.02 -- 0.001 is too much.
@@ -273,7 +269,7 @@ void resetAllCars();
 void resetAndDrawTrack(bool aDoAnimation);
 void resetAndShowTrackWithoutCars();
 bool isInRegion(uint16_t aPixelPosition, unsigned int aRegionFirst, unsigned int aRegionLength);
-bool isAnyCarInRegion(unsigned int aRegionFirst, unsigned int aRegionLength);
+bool isAnyCarInRegion(unsigned int aRegionStartIndex, unsigned int aRegionLength);
 void playError();
 void playShutdownMelody();
 void playMelodyAndShutdown();
@@ -302,10 +298,10 @@ void myTone(int aFrequency) {
  * The RAMP class
  * Sets gravity for the ramps and allocates NeoPatterns for the ramps to AnimationForIdle
  *
- * Requires 10 bytes RAM + sizeof(NeoPatterns) per ramp
- * One ramp consists of (aRampLength + 1) pixel with the first and last with half the gravity
+ * Requires 10 bytes static RAM per ramp + RAM usage for NeoPatterns
+ * One ramp consists of aRampLength pixel with the first and last with half the gravity
  * aRampUpStart - First pixel with gravity = 1/2 gravity
- * aRampLength - aRampUpStart + aRampLength is last ramp pixel with gravity = 1/2 gravity
+ * aRampLength - aRampUpStart + aRampLength - 1 is last ramp pixel with gravity = 1/2 gravity
  * Gravity - 100 is full gravity for vertical slope
  *******************************************************************************************/
 class Ramp {
@@ -315,7 +311,7 @@ public:
     NeoPatterns *RampPatterns;
     bool isInitialized;
 #endif
-    uint16_t StartPositionOnTrack;
+    uint16_t StartPositionOnTrack; // Pixel offset - starting with 0
     uint8_t RampLength;
     uint8_t RampHeight;
     bool isRampDown;
@@ -337,7 +333,7 @@ public:
         void *tMallocTest = malloc(sizeof(NeoPatterns)); // 67 + 2
         if (tMallocTest != nullptr) {
             free(tMallocTest);
-            RampPatterns = new NeoPatterns(TrackPtr, StartPositionOnTrack, RampLength, false);
+            RampPatterns = new NeoPatterns(TrackPtr, StartPositionOnTrack, RampLength, DISABLE_CALLING_SHOW_OF_PARENT);
             isInitialized = true;
         } else {
             Serial.print(F("Not enough heap memory ("));
@@ -357,13 +353,13 @@ public:
      */
     int8_t getGravityAcceleration(uint16_t aPositionOnTrack) {
 #if defined(DEBUG)
-        if (aPositionOnTrack < StartPositionOnTrack || aPositionOnTrack > StartPositionOnTrack + RampLength) {
+        if (aPositionOnTrack < StartPositionOnTrack || aPositionOnTrack >= StartPositionOnTrack + RampLength) {
             Serial.print(F("Error! position="));
             Serial.print(aPositionOnTrack);
             Serial.print(F(" is not on ramp "));
             Serial.print(StartPositionOnTrack);
             Serial.print(F(" to "));
-            Serial.println(StartPositionOnTrack + RampLength);
+            Serial.println(StartPositionOnTrack + RampLength - 1);
         }
 #endif
         uint8_t tPositionOnRamp = aPositionOnTrack - StartPositionOnTrack;
@@ -371,10 +367,10 @@ public:
         if (!isRampDown) {
             tResultingForce = -tResultingForce; // deceleration for ramp up
         }
-        if (tPositionOnRamp == 0 || tPositionOnRamp == RampLength) {
-            return tResultingForce / 2; // Start and end with half deceleration for ramp up
+        if (tPositionOnRamp == 0 || tPositionOnRamp == (RampLength - 1)) {
+            return tResultingForce / 2; // Start and end with half deceleration for ramp up / acceleration for ramp down
         } else {
-            return tResultingForce; // Deceleration for ramp up
+            return tResultingForce; // Deceleration for ramp up / acceleration for ramp down
         }
     }
 
@@ -391,17 +387,16 @@ public:
             tRandom.Long = aRandomValue;
             if (tRandom.UBytes[0] & 0x03) {
                 if (tRandom.UBytes[0] & 0x01) {
-                    //1 + 3
+                    // 1 + 3
                     RampPatterns->Stripes(NeoPatterns::Wheel(tRandom.UBytes[0]), (tRandom.UBytes[1] & 0x03) + 1, COLOR32_BLACK, 4,
                             (tRandom.UBytes[2] & 0x7F) + 64, (tRandom.UBytes[3] & 0x1F) + 4, tDirection);
                 } else {
-                    //2
-                    initMultipleFallingStars(RampPatterns, COLOR32_WHITE_HALF, 7, (tRandom.UBytes[0] & 0x07) + 1,
-                            (tRandom.UBytes[0] & 0x03) + 2, nullptr, tDirection);
+                    // 2
+                    initMultipleFallingStars(RampPatterns, COLOR32_WHITE_HALF, 7, (tRandom.UBytes[0] & 0x07) + 1, 4, nullptr,
+                            tDirection);
                 }
             } else {
                 if (tRandom.UBytes[0] > 0x03) {
-                    // 0 - especially used for setup
                     RampPatterns->ColorWipeDuration(NeoPatterns::Wheel(tRandom.UBytes[0]), START_ANIMATION_MILLIS, false,
                             tDirection);
                 } else {
@@ -424,7 +419,7 @@ public:
         bool tCarIsOnRamp = isAnyCarInRegion(StartPositionOnTrack, RampLength);
         color32_t tColor = RAMP_COLOR;
         if (tCarIsOnRamp) {
-            tColor = TrackPtr->dimColorWithGamma5(tColor, 160);
+            tColor = TrackPtr->dimColorWithGamma5(tColor, GAMMA_FOR_DIMMED_VALUE);
         }
         TrackPtr->fillRegion(tColor, StartPositionOnTrack, RampLength);
 #endif
@@ -433,24 +428,23 @@ public:
 
 /*******************************************************************************************
  * The BRIDGE class
- * Requires 23 bytes + 2 * sizeof(NeoPatterns) RAM per bridge
+ * Requires 23 bytes static RAM per bridge + RAM usage for 2 NeoPatterns
  *******************************************************************************************/
 class Bridge {
-#if !defined(BRIDGE_NO_NEOPATTERNS)
 public:
-    NeoPatterns *TrackPtr;
+#if !defined(BRIDGE_NO_NEOPATTERNS)
+//    NeoPatterns *TrackPtr; // for future use
     bool isInitialized;
 #endif
     Ramp RampUp;
     Ramp RampDown;
 
-public:
     void init(NeoPatterns *aTrackPtr, uint16_t aBridgeStartPositionOnTrack, uint8_t aBridgeHeight, uint8_t aRampLength,
             uint8_t aRampPlatformLength) {
-        RampUp.init(aTrackPtr, aBridgeStartPositionOnTrack, aBridgeHeight, aRampLength, false);
-        RampDown.init(aTrackPtr, aBridgeStartPositionOnTrack + aRampLength + aRampPlatformLength, aBridgeHeight, aRampLength, true);
+        RampUp.init(aTrackPtr, aBridgeStartPositionOnTrack, aBridgeHeight, aRampLength, false); // false = ramp up
+        RampDown.init(aTrackPtr, aBridgeStartPositionOnTrack + aRampLength + aRampPlatformLength, aBridgeHeight, aRampLength, true); // true = ramp down
 #if !defined(BRIDGE_NO_NEOPATTERNS)
-        TrackPtr = aTrackPtr;
+//        TrackPtr = aTrackPtr;
         isInitialized = true;
 #endif
     }
@@ -488,7 +482,7 @@ Bridge bridges[NUMBER_OF_BRIDGES];
  ********************************/
 class Loop {
     /*
-     * Requires 10 bytes + sizeof(NeoPatterns) RAM per loop
+     * Requires 10 bytes static RAM per loop + RAM usage for NeoPatterns
      *
      * Loop consists of (LoopLength) pixel
      * Gravity - 100 is full gravity for vertical slope
@@ -511,25 +505,25 @@ public:
         TrackPtr = aTrackPtr;
 #if !defined(LOOP_NO_NEOPATTERNS)
         /*
-         * NeoPatterns segments to control light effects on both ramps
+         * NeoPatterns segments to control light effects on both loops
          * Call malloc() and free() before, since the compiler calls the constructor even when the result of malloc() is nullptr, which leads to overwrite low memory.
          */
         void *tMallocTest = malloc(sizeof(NeoPatterns)); // 67 + 2
         if (tMallocTest != nullptr) {
             free(tMallocTest);
             // Create a NeoPattern, which runs on a segment of the existing NeoPattern object.
-            LoopPatterns = new NeoPatterns(TrackPtr, StartPositionOnTrack, LoopLength, false);
+            LoopPatterns = new NeoPatterns(TrackPtr, StartPositionOnTrack, LoopLength, DISABLE_CALLING_SHOW_OF_PARENT);
             isInitialized = true;
 #  if defined(__AVR__) && defined(DEBUG)
-            printRAMInfo(&Serial);
+            printRAMAndStackInfo(&Serial);
 #  endif
         } else {
             Serial.print(F("Not enough heap memory ("));
             Serial.print(sizeof(NeoPatterns) + 2);
             Serial.println(F(") for LoopPatterns."));
-#  if defined(__AVR__)
+#  if defined(__AVR__) && defined(INFO)
             if (!sOnlyPlotterOutput) {
-                printRAMInfo(&Serial);
+                printRAMAndStackInfo(&Serial);
             }
 #  endif
         }
@@ -566,16 +560,16 @@ public:
             tRandom.Long = random();
             if (doRandom && (tRandom.UBytes[0] & 0x03)) {
                 if (tRandom.UBytes[0] & 0x01) {
-                    //1 + 3
+                    // 1 + 3
                     LoopPatterns->Stripes(NeoPatterns::Wheel(tRandom.UBytes[0]), (tRandom.UBytes[1] & 0x03) + 1, COLOR32_BLACK, 5,
                             (tRandom.UBytes[2] & 0x7F) + 64, (tRandom.UBytes[3] & 0x1F) + 4, DIRECTION_UP);
                 } else {
-                    //2
-                    initMultipleFallingStars(LoopPatterns, COLOR32_WHITE_HALF, 7, (tRandom.UBytes[0] & 0x07) + 1,
-                            4 - (tRandom.UBytes[0] & 0x03), nullptr, DIRECTION_UP);
+                    // 2
+                    initMultipleFallingStars(LoopPatterns, COLOR32_WHITE_HALF, 7, (tRandom.UBytes[0] & 0x07) + 1, 2, nullptr,
+                    DIRECTION_UP);
                 }
             } else {
-                // 0 or not random
+                // every 4. call or not random (at setup)
                 LoopPatterns->ScannerExtendedDuration(COLOR32_BLUE_HALF, 8, START_ANIMATION_MILLIS, 2,
                 FLAG_SCANNER_EXT_ROCKET | FLAG_SCANNER_EXT_VANISH_COMPLETE | FLAG_SCANNER_EXT_START_AT_BOTH_ENDS, DIRECTION_UP);
             }
@@ -601,10 +595,10 @@ public:
             }
         }
 #else
-        (void) aDoAnimation; // to avoid compiler warning
+        (void) aDoRaceAnimation; // to avoid compiler warning
 #endif
         if (tCarIsOnLoop) {
-            tColor = TrackPtr->dimColorWithGamma5(tColor, 160);
+            tColor = TrackPtr->dimColorWithGamma5(tColor, GAMMA_FOR_DIMMED_VALUE);
         }
         TrackPtr->fillRegion(tColor, StartPositionOnTrack, LoopLength);
     }
@@ -614,7 +608,7 @@ Loop loops[NUMBER_OF_LOOPS];
 /*******************************************************************************************
  * The CAR class
  * Code related to each car is contained in this class
- * Requires 23 bytes RAM per car
+ * Requires 23 bytes RAM + optional MPU6050IMUData object per car
  *******************************************************************************************/
 /*
  * Return values for computeNewSpeedAndDistance
@@ -629,8 +623,8 @@ public:
     uint8_t AcceleratorButtonPin;
 #if defined(USE_ACCELERATION_NEOPIXEL_BARS)
     uint8_t AccelerationBarPin;
-    uint16_t AcceleratorLowPassValue;
 #endif
+    uint16_t AcceleratorLowPassValue;
 
 #if defined(ENABLE_ACCELERATOR_INPUT)
     MPU6050IMUData AcceleratorInput;
@@ -655,13 +649,13 @@ public:
     }
 
     void init(NeoPatterns *aTrackPtr, uint8_t aNumberOfThisCar, uint8_t aButtonPin, color32_t aCarColor,
-            const char *Car1ColorString, const char *aWinnerMelody) {
+            const char *aCar1ColorString, const char *aWinnerMelody) {
         TrackPtr = aTrackPtr;
         NumberOfThisCar = aNumberOfThisCar;
         AcceleratorButtonPin = aButtonPin;
         pinMode(AcceleratorButtonPin, INPUT_PULLUP);
         Color = aCarColor;
-        CarColorString = Car1ColorString;
+        CarColorString = aCar1ColorString;
         WinnerMelody = aWinnerMelody;
 
         reset();
@@ -720,7 +714,7 @@ public:
     }
 
     /*
-     * The car consists of number of laps pixels
+     * The car consists of number of CAR_INITIAL_LENGTH + Laps * CAR_INCREASE_OF_LENGTH_PER_LAP pixels
      * Overlapping of cars is handled by using addPixelColor for drawing
      */
     void draw() {
@@ -728,7 +722,7 @@ public:
 #if defined(TEST_MODE)
         for (int i = 0; i <= 1; i++) {
 #else
-        for (int i = 0; i <= Laps; i++) {
+        for (int i = 0; i < CAR_INITIAL_LENGTH + (Laps * CAR_INCREASE_OF_LENGTH_PER_LAP); i++) {
 #endif
             // draw from back to front
             int16_t tDrawPosition = PixelPosition - i;
@@ -757,9 +751,6 @@ public:
     }
 
 #if defined(ENABLE_ACCELERATOR_INPUT)
-    /*
-     * @return 4 g for 16 bit full range
-     */
     uint8_t getAcceleratorValueShift8() {
         AcceleratorInput.readDataFromMPU6050();
 //        AcceleratorInput.readDataFromMPU6050Fifo();
@@ -811,7 +802,7 @@ public:
     /*
      * Play a winner melody and run animations with the car color on the track
      * Returns if melody ends
-     * You can stop melody and animation by pressing the car button.
+     * You can stop melody and animation directly by pressing the stop button or after 2 seconds by pressing a car button (WINNER_MINIMAL_ANIMATION_DURATION_MILLIS).
      * @return true if stopped by user input
      */
     bool doBlockingWinnerAnimationAndSound() {
@@ -846,7 +837,7 @@ public:
                 // Start stop button was pressed or minimal animation time was reached and car input was activated
                 stopPlayRtttl(); // to stop in a deterministic fashion
                 tReturnValue = true;
-                Serial.println(F("Reset game button pressed -> abort melody and start a new race"));
+                Serial.println(F("Reset game button pressed or car input detected -> abort melody and start a new race"));
             }
             yield();
         }
@@ -854,14 +845,14 @@ public:
         return tReturnValue;
     }
 
-    void print(float aGravity, float aFricion, float aDrag) {
+    void print(float aGravity, float aFriction, float aDrag) {
         Serial.print(NumberOfThisCar);
         Serial.print(F(" Speed="));
         Serial.print(SpeedAsPixelPerLoop, 2);
         Serial.print(F(" - Gravity="));
         Serial.print(aGravity, 6);
-        Serial.print(F(" Fricion="));
-        Serial.print(aFricion, 6);
+        Serial.print(F(" Friction="));
+        Serial.print(aFriction, 6);
         Serial.print(F(" Drag="));
         Serial.println(aDrag, 6);
     }
@@ -878,7 +869,7 @@ public:
         uint16_t tAcceleration = 0;
 
         if (checkButton()) {
-            // add fixed amount of energy ->  800 => tAdditionalEnergy is 0.2 per press
+            // Add fixed amount of energy ->  800 => tAdditionalEnergy is 0.2 pixel per loop per press, 600 => 0.15 pixel
             tAcceleration = 600; // with 600 we can get AcceleratorLowPassValue up to 8 / full scale
         }
 
@@ -891,9 +882,11 @@ public:
 #if defined(USE_ACCELERATION_NEOPIXEL_BARS)
         AcceleratorLowPassValue += (((int16_t) (tAcceleration - AcceleratorLowPassValue))) >> 3;
         auto tAcceleratorLowPassValue = AcceleratorLowPassValue;
+#  if defined(ENABLE_ACCELERATOR_INPUT)
         if (!ButtonInputDetected) {
             tAcceleratorLowPassValue *= 2; // Quick hack, we cannot get full scale without it.
         }
+#  endif
         // scale it so that 100 -> 8
         // Parameter NumberOfThisCar == 1 has the effect, that bar for car 2 can be mounted upside down
         AccelerationCommonNeopixelBar.drawBar(tAcceleratorLowPassValue / (100 / 8), Color, NumberOfThisCar == 1);
@@ -929,7 +922,7 @@ public:
 
         bool tIsAnalogParameterInputMode = !digitalRead(PIN_MANUAL_PARAMETER_MODE);
         float tGravity;
-        float tFricion;
+        float tFriction;
         float tDrag;
 
         if (tIsAnalogParameterInputMode) {
@@ -938,40 +931,40 @@ public:
              * 850 us for analogRead + DEBUG print
              */
             uint16_t tGravityRaw = analogRead(PIN_GRAVITY_INPUT);
-            uint16_t tFricionRaw = analogRead(PIN_FRICTION_INPUT);
+            uint16_t tFrictionRaw = analogRead(PIN_FRICTION_INPUT);
             uint16_t tDragRaw = analogRead(PIN_DRAG_INPUT);
             if (tGravityRaw >= ANALOG_OFFSET) {
                 // -ANALOG_OFFSET (20) to get real 0 value even if ground has bias because of high LED current on breadboard
                 tGravityRaw -= ANALOG_OFFSET;
             }
-            if (tFricionRaw >= ANALOG_OFFSET) {
-                tFricionRaw -= ANALOG_OFFSET;
+            if (tFrictionRaw >= ANALOG_OFFSET) {
+                tFrictionRaw -= ANALOG_OFFSET;
             }
             if (tDragRaw >= ANALOG_OFFSET) {
                 tDragRaw -= ANALOG_OFFSET;
             }
             tGravity = tGravityRaw * (GRAVITY_FACTOR_FOR_MAP / 512);
-            tFricion = tFricionRaw * (FRICTION_PER_LOOP / 512);
+            tFriction = tFrictionRaw * (FRICTION_PER_LOOP / 512);
             tDrag = tDragRaw * (AERODYNAMIC_DRAG_PER_LOOP / 512);
 #if defined(DEBUG)
             if ((((sLoopCountForDebugPrint & 0x3F) == 0) || checkInput()) && NumberOfThisCar == 1) {
-#if defined(TRACE)
+#  if defined(TRACE)
                     Serial.print(F("GRaw="));
                     Serial.print(tGravityRaw);
                     Serial.print(F(" FRaw="));
-                    Serial.print(tFricionRaw);
+                    Serial.print(tFrictionRaw);
                     Serial.print(F(" DRaw="));
                     Serial.println(tDragRaw);
-#endif
+#  endif
 
-                print(tGravity, tFricion, tDrag);
+                print(tGravity, tFriction, tDrag);
             }
 #endif
 
         } else {
             // 100 microseconds
             tGravity = GRAVITY_FACTOR_FOR_MAP;
-            tFricion = FRICTION_PER_LOOP;
+            tFriction = FRICTION_PER_LOOP;
             tDrag = AERODYNAMIC_DRAG_PER_LOOP;
         }
 
@@ -1011,10 +1004,10 @@ public:
          */
         int8_t tGravityAcceleration = 0;
         if (PixelPosition >= bridges[0].RampUp.StartPositionOnTrack
-                && PixelPosition <= (bridges[0].RampUp.StartPositionOnTrack + bridges[0].RampUp.RampLength)) {
+                && PixelPosition < (bridges[0].RampUp.StartPositionOnTrack + bridges[0].RampUp.RampLength)) {
             tGravityAcceleration = bridges[0].RampUp.getGravityAcceleration(PixelPosition);
         } else if (PixelPosition >= bridges[0].RampDown.StartPositionOnTrack
-                && PixelPosition <= (bridges[0].RampDown.StartPositionOnTrack + bridges[0].RampDown.RampLength)) {
+                && PixelPosition < (bridges[0].RampDown.StartPositionOnTrack + bridges[0].RampDown.RampLength)) {
             tGravityAcceleration = bridges[0].RampDown.getGravityAcceleration(PixelPosition);
         } else if (PixelPosition >= loops[0].StartPositionOnTrack
                 && PixelPosition < (loops[0].StartPositionOnTrack + loops[0].LoopLength)) {
@@ -1034,15 +1027,15 @@ public:
 
         if (SpeedAsPixelPerLoop > 0) {
             // forward direction
-            if (SpeedAsPixelPerLoop > tFricion) {
-                SpeedAsPixelPerLoop -= tFricion;
+            if (SpeedAsPixelPerLoop > tFriction) {
+                SpeedAsPixelPerLoop -= tFriction;
             } else {
                 SpeedAsPixelPerLoop = 0.0;
             }
         } else {
             // backward direction
-            if (SpeedAsPixelPerLoop < -tFricion) {
-                SpeedAsPixelPerLoop += tFricion;
+            if (SpeedAsPixelPerLoop < -tFriction) {
+                SpeedAsPixelPerLoop += tFriction;
             } else {
                 SpeedAsPixelPerLoop = 0.0;
             }
@@ -1074,7 +1067,9 @@ extern size_t __malloc_margin;
 void setup() {
     __malloc_margin = 120; // 128 is the default value
     pinMode(LED_BUILTIN, OUTPUT);
+#if defined(PIN_START_END_GAME_BUTTON_LED)
     pinMode(PIN_START_END_GAME_BUTTON_LED, OUTPUT);
+#endif
 
     pinMode(PIN_START_END_GAME_BUTTON, INPUT_PULLUP);
     pinMode(PIN_MANUAL_PARAMETER_MODE, INPUT_PULLUP);
@@ -1162,25 +1157,15 @@ void setup() {
 //    myTone(64000);
 #if defined(INFO) && defined(__AVR__)
     if (!sOnlyPlotterOutput) {
-        printRAMInfo(&Serial);
+        printRAMAndStackInfo(&Serial);
     }
 #  endif
     loops[0].init(&track, LOOP_1_UP_START, LOOP_1_LENGTH); // Requires 69 bytes on heap
 #if defined(INFO) && defined(__AVR__)
     if (!sOnlyPlotterOutput) {
-        printRAMInfo(&Serial);
+        printRAMAndStackInfo(&Serial);
     }
 #  endif
-    /*
-     * Setup cars
-     */
-    if (!sOnlyPlotterOutput) {
-        Serial.println(F("Initialize cars"));
-        Serial.flush();
-    }
-    cars[0].init(&track, 1, PIN_PLAYER_1_BUTTON, CAR_1_COLOR, Car1ColorString, MissionImp);
-    cars[1].init(&track, 2, PIN_PLAYER_2_BUTTON, CAR_2_COLOR, Car2ColorString, StarWars);
-//    cars[2].init(&track, 3, PIN_PLAYER_3_BUTTON, CAR_3_COLOR, Entertainer);
 
     /*
      * Setup the red and green acceleration feedback bars
@@ -1190,6 +1175,19 @@ void setup() {
     AccelerationCommonNeopixelBar.begin();
     cars[0].AccelerationBarPin = PIN_PLAYER_1_VU_BAR;
     cars[1].AccelerationBarPin = PIN_PLAYER_2_VU_BAR;
+#endif
+
+    /*
+     * Setup cars
+     */
+    if (!sOnlyPlotterOutput) {
+        Serial.println(F("Initialize cars"));
+        Serial.flush();
+    }
+    cars[0].init(&track, 1, PIN_PLAYER_1_BUTTON, CAR_1_COLOR, Car1ColorString, MissionImp);
+    cars[1].init(&track, 2, PIN_PLAYER_2_BUTTON, CAR_2_COLOR, Car2ColorString, StarWars);
+#if !defined(ENABLE_ACCELERATOR_INPUT)
+    cars[2].init(&track, 3, PIN_PLAYER_3_BUTTON, CAR_3_COLOR, Car3ColorString, Entertainer);
 #endif
 
     /*
@@ -1221,9 +1219,9 @@ void setup() {
     tone(PIN_BUZZER, 1200, 200);
 
 // wait for animation to end
-    while (track.updateAndShowAlsoAllPartialPatterns()) {
+    while (track.updateAndShowAlsoAllChildPatterns()) {
         yield();
-        if (checkAllCarInputs() || isStartStopButtonPressed()) {
+        if ((digitalRead(PIN_START_BY_INPUT_DISABLE) && checkAllCarInputs()) || isStartStopButtonPressed()) {
             break;
         }
     }
@@ -1234,158 +1232,163 @@ void setup() {
     resetAndShowTrackWithoutCars();
 #if defined(INFO) && defined(__AVR__)
     if (!sOnlyPlotterOutput) {
-        printRAMInfo(&Serial);
+        printRAMAndStackInfo(&Serial);
         initStackFreeMeasurement(); // initialize for getting stack usage in loop
     }
 #endif
 }
 
 /*
- * 10 Milliseconds per loop without delay
+ * Run loop at a fixed 20 milliseconds (MILLISECONDS_PER_LOOP) period
  */
 void loop() {
-    static uint32_t sNextLoopMillis;
+    static uint32_t sLastLoopMillis;
     static uint32_t sLastAnimationMillis;
 
     /*
      * Run loop at a fixed 20 ms period
      */
-    while (millis() < sNextLoopMillis) {
-        yield();
-    }
-    sNextLoopMillis += MILLISECONDS_PER_LOOP;
+    if (millis() - sLastLoopMillis >= MILLISECONDS_PER_LOOP) {
+        sLastLoopMillis = millis();
 
-    sLoopCountForDebugPrint++;
-    sOnlyPlotterOutput = !digitalRead(ONLY_PLOTTER_OUTPUT_PIN);
+        sLoopCountForDebugPrint++;
+        sOnlyPlotterOutput = !digitalRead(ONLY_PLOTTER_OUTPUT_PIN);
 
 #if defined(INFO) && defined(__AVR__)
-    if (!sOnlyPlotterOutput) {
-        printStackMaxUsedAndUnusedSizesIfChanged(&Serial);
-    }
+        if (!sOnlyPlotterOutput) {
+            printStackMaxUsedAndUnusedSizesIfChanged(&Serial);
+        }
 #endif
 
-    if (sLoopMode == MODE_IDLE) {
-        digitalWrite(PIN_START_END_GAME_BUTTON_LED, HIGH); // signal "start by button press"
+        if (sLoopMode == MODE_IDLE) {
+#if defined(PIN_START_END_GAME_BUTTON_LED)
+            digitalWrite(PIN_START_END_GAME_BUTTON_LED, HIGH); // signal "start by button press"
+#endif
 
-        /*
-         * Do periodic animation
-         */
-        if (millis() - sLastAnimationMillis > ANIMATION_INTERVAL_MILLIS) {
-            sLastAnimationMillis = millis();
-            for (uint_fast8_t i = 0; i < NUMBER_OF_BRIDGES; ++i) {
-                bridges[i].startIdleAnimation(true);
+            /*
+             * Do periodic animation
+             */
+            if (millis() - sLastAnimationMillis > ANIMATION_INTERVAL_MILLIS) {
+                sLastAnimationMillis = millis();
+                for (uint_fast8_t i = 0; i < NUMBER_OF_BRIDGES; ++i) {
+                    bridges[i].startIdleAnimation(true);
+                }
+                for (uint_fast8_t i = 0; i < NUMBER_OF_LOOPS; ++i) {
+                    loops[i].startIdleAnimation(true);
+                }
+                if (!sOnlyPlotterOutput) {
+                    Serial.println(F("Start idle animation"));
+                }
             }
-            for (uint_fast8_t i = 0; i < NUMBER_OF_LOOPS; ++i) {
-                loops[i].startIdleAnimation(true);
-            }
-            if (!sOnlyPlotterOutput) {
-                Serial.println(F("Start idle animation"));
-            }
-        }
 
-        /*
-         * Check for start
-         */
-        if (digitalRead(PIN_START_BY_INPUT_DISABLE)) {
-            // Start button not enabled here
-            if (checkAllCarInputs()) {
+            /*
+             * Check for start
+             */
+            if (digitalRead(PIN_START_BY_INPUT_DISABLE)) {
+                // Car inputs enabled here
+                if (checkAllCarInputs()) {
+                    sLoopMode = MODE_START;
+                }
+            }
+            // Check start button anyway
+            if (isStartStopButtonPressed()) {
                 sLoopMode = MODE_START;
             }
-        }
-        // Check start button anyway
-        if (isStartStopButtonPressed()) {
-            sLoopMode = MODE_START;
-        }
 
-        track.updateAndShowAlsoAllPartialPatterns(); // Show animation
+            track.updateAndShowAlsoAllChildPatterns(); // Show animation
 
-    } else {
-        digitalWrite(PIN_START_END_GAME_BUTTON_LED, LOW);
-        if (sLoopMode == MODE_START) {
-            startRace(); // blocking call
-            sLoopMode = MODE_RACE;
+        } else {
+#if defined(PIN_START_END_GAME_BUTTON_LED)
+            digitalWrite(PIN_START_END_GAME_BUTTON_LED, LOW);
+#endif
+            if (sLoopMode == MODE_START) {
+                startRace(); // blocking call
+                sLoopMode = MODE_RACE;
 
-        } else if (sLoopMode == MODE_RACE) {
-            /*
-             * Race mode
-             * 1. Reset track with loop animation
-             * 2. Move cars
-             * 3. Check for overtaking the leader and winner
-             * 4. Manage sound
-             * 5. Check race reset button
-             */
-            resetAndDrawTrack(true);
+            } else if (sLoopMode == MODE_RACE) {
+                /*
+                 * Race mode
+                 * 1. Reset track with loop animation
+                 * 2. Move cars
+                 * 3. Check for overtaking the leader and winner
+                 * 4. Manage sound
+                 * 5. Check race reset button
+                 */
+                resetAndDrawTrack(true);
 
-            /*
-             * If one car is moving, print complete dataset
-             */
-            if (sOnlyPlotterOutput) {
-                sPrintCurrentDatasetToPlotterOutput = false;
+                /*
+                 * If one car is moving, print complete dataset
+                 */
+                if (sOnlyPlotterOutput) {
+                    sPrintCurrentDatasetToPlotterOutput = false;
+                    for (uint_fast8_t i = 0; i < NUMBER_OF_CARS; ++i) {
+                        if (cars[i].SpeedAsPixelPerLoop > 0.01 || cars[i].SpeedAsPixelPerLoop < -0.01) {
+                            sPrintCurrentDatasetToPlotterOutput = true;
+                        }
+                    }
+                }
+
+                /*
+                 * Move each car and start lap sound if one car starts a new lap
+                 */
                 for (uint_fast8_t i = 0; i < NUMBER_OF_CARS; ++i) {
-                    if (cars[i].SpeedAsPixelPerLoop > 0.01 || cars[i].SpeedAsPixelPerLoop < -0.01) {
-                        sPrintCurrentDatasetToPlotterOutput = true;
+                    if (cars[i].computeNewSpeedAndDistance() == CAR_LAP_CONDITION) {
+                        sBeepEndMillis = millis() + 100;
+                        sBeepFrequency = 2000;
                     }
                 }
-            }
-
-            /*
-             * Move each car and start lap sound if one car starts a new lap
-             */
-            for (uint_fast8_t i = 0; i < NUMBER_OF_CARS; ++i) {
-                if (cars[i].computeNewSpeedAndDistance() == CAR_LAP_CONDITION) {
-                    sBeepEndMillis = millis() + 100;
-                    sBeepFrequency = 2000;
+                if (sPrintCurrentDatasetToPlotterOutput) {
+                    Serial.println(); // end of plotter dataset
                 }
-            }
-            if (sPrintCurrentDatasetToPlotterOutput) {
-                Serial.println(); // end of plotter dataset
-            }
 
-            /*
-             * Draw all cars
-             */
-            for (uint_fast8_t i = 0; i < NUMBER_OF_CARS; ++i) {
-                cars[i].draw();
-            }
+                /*
+                 * Draw all cars
+                 */
+                for (uint_fast8_t i = 0; i < NUMBER_OF_CARS; ++i) {
+                    cars[i].draw();
+                }
 
-            checkForOvertakingLeaderCar();
-            checkAndHandleWinner();
+                checkForOvertakingLeaderCar();
+                checkAndHandleWinner();
 
-            /*
-             * Show track
-             */
-            track.show(); // 9 Milliseconds for 300 Pixel
-            timer0_millis += MILLIS_FOR_TRACK_TO_SHOW; // compensate Arduino millis() for the time interrupt was disabled for track.show().
+                /*
+                 * Show track
+                 */
+                track.show(); // 9 Milliseconds for 300 Pixel
+                timer0_millis += MILLIS_FOR_TRACK_TO_SHOW; // compensate Arduino millis() for the time interrupt was disabled for track.show().
 
-            /*
-             * Manage sound. Must check for situation after winner
-             */
-            if (sSoundEnabled && sLoopMode == MODE_RACE) {
-                if (millis() < sBeepEndMillis) {
-                    // Play a single beep, like for overtaking
-                    myTone(sBeepFrequency);
-                } else {
-                    // tFrequency must be integer since SpeedAsPixelPerLoop can be negative
-                    int tFrequency = cars[0].SpeedAsPixelPerLoop * 440 + cars[1].SpeedAsPixelPerLoop * 440;
-                    if (tFrequency > 100) {
-                        myTone(tFrequency);
+                /*
+                 * Manage sound. Must check for situation after winner
+                 */
+                if (sLoopMode == MODE_RACE) {
+                    if (millis() < sBeepEndMillis) {
+                        // Play a single beep, like for overtaking
+                        myTone(sBeepFrequency);
                     } else {
-                        noTone(PIN_BUZZER);
+                        // tFrequency must be integer since SpeedAsPixelPerLoop can be negative
+                        int tFrequency = cars[0].SpeedAsPixelPerLoop * 440 + cars[1].SpeedAsPixelPerLoop * 440;
+                        if (tFrequency > 100) {
+                            myTone(tFrequency);
+                        } else {
+                            noTone(PIN_BUZZER);
+                        }
                     }
                 }
-            }
 
-            /*
-             * check for game reset button
-             */
-            if (isStartStopButtonPressed()) {
-                noTone(PIN_BUZZER);
-                resetAllCars();
-                myLCD.clear();
-                Serial.println(F("Reset game button pressed -> start a new race"));
-                printStartMessage();
-                resetAndShowTrackWithoutCars();
-                sLoopMode = MODE_IDLE;
+                /*
+                 * check for game reset button
+                 */
+                if (isStartStopButtonPressed()) {
+                    noTone(PIN_BUZZER);
+                    resetAllCars();
+                    if (sSerialLCDAvailable) {
+                        myLCD.clear();
+                    }
+                    Serial.println(F("Reset game button pressed -> start a new race"));
+                    printStartMessage();
+                    resetAndShowTrackWithoutCars();
+                    sLoopMode = MODE_IDLE;
+                }
             }
         }
     }
@@ -1399,7 +1402,7 @@ void printStartMessage() {
     } else {
         Serial.print(F("Press any button"));
 #if defined(ENABLE_ACCELERATOR_INPUT)
-        if (cars[0].AcceleratorInputConnected || cars[1].AcceleratorInputConnected) {
+        if (digitalRead(PIN_START_BY_INPUT_DISABLE) && (cars[0].AcceleratorInputConnected || cars[1].AcceleratorInputConnected)) {
             Serial.print(F(" or move controller"));
         }
 #endif
@@ -1442,7 +1445,7 @@ bool isStartStopButtonPressed() {
 }
 
 /*
- * @return true if any car button pressed or IMU moved or start / reset game button pressed
+ * @return true if any car button pressed or IMU moved
  */
 bool checkAllCarInputs() {
     for (uint_fast8_t i = 0; i < NUMBER_OF_CARS; ++i) {
@@ -1551,17 +1554,17 @@ void playMelodyAndShutdown() {
     }
 }
 
-bool isAnyCarInRegion(unsigned int aRegionFirst, unsigned int aRegionLength) {
+bool isAnyCarInRegion(unsigned int aRegionStartIndex, unsigned int aRegionLength) {
     for (uint_fast8_t i = 0; i < NUMBER_OF_CARS; ++i) {
-        if (isInRegion(cars[i].PixelPosition, aRegionFirst, aRegionLength)) {
+        if (isInRegion(cars[i].PixelPosition, aRegionStartIndex, aRegionLength)) {
             return true;
         }
     }
     return false;
 }
 
-bool isInRegion(uint16_t aPixelPosition, unsigned int aRegionFirst, unsigned int aRegionLength) {
-    if (aPixelPosition >= aRegionFirst && aPixelPosition <= (aRegionFirst + aRegionLength)) {
+bool isInRegion(uint16_t aPixelPosition, unsigned int aRegionStartIndex, unsigned int aRegionLength) {
+    if (aPixelPosition >= aRegionStartIndex && aPixelPosition < (aRegionStartIndex + aRegionLength)) {
         return true;
     }
     return false;
@@ -1606,13 +1609,14 @@ void startRace() {
     }
     track.show();
 
-    uint8_t tIndex = 4; // index of last light
+    uint8_t tIndex = 4; // index of first light
     if (sSerialLCDAvailable) {
         myLCD.clear();
     }
     for (int tCountDown = 4; tCountDown >= 0; tCountDown--) {
         // delay at start of loop to enable fast start after last countdown
 
+#if defined(USE_ACCELERATION_NEOPIXEL_BARS)
         delay(900);
         AccelerationCommonNeopixelBar.drawBar(8, CAR_1_COLOR);
         AccelerationCommonNeopixelBar.setPin(PIN_PLAYER_1_VU_BAR);
@@ -1627,6 +1631,9 @@ void startRace() {
         AccelerationCommonNeopixelBar.show();
         AccelerationCommonNeopixelBar.setPin(PIN_PLAYER_2_VU_BAR);
         AccelerationCommonNeopixelBar.show();
+#else
+        delay(1000);
+#endif
 
         track.setPixelColor(tIndex + (2 * tCountDown), COLOR32_RED);
         track.setPixelColor(tIndex + (2 * tCountDown) + 1, COLOR32_RED);
@@ -1655,7 +1662,6 @@ void startRace() {
     if (!sOnlyPlotterOutput) {
         Serial.println(F("Start race"));
     }
-    myLCD.clear();
     if (sSerialLCDAvailable) {
         // print initial lap counters
         myLCD.clear();

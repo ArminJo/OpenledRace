@@ -3,8 +3,7 @@
  *
  *  Arduino library to write big numbers on a 1602 or 2004 LCD.
  *
- *  Copyright (C) 2022-2025  Armin Joachimsmeyer
- *  armin.joachimsmeyer@gmail.com
+ *  Copyright (C) 2022-2026  Armin Joachimsmeyer
  *
  *  This file is part of LCDBigNumbers https://github.com/ArminJo/LCDBigNumbers.
  *
@@ -47,7 +46,7 @@
 #define VERSION_HEX_VALUE(major, minor, patch) ((major << 16) | (minor << 8) | (patch))
 #define VERSION_LCD_BIG_NUMBERS_HEX  VERSION_HEX_VALUE(VERSION_LCD_BIG_NUMBERS_MAJOR, VERSION_LCD_BIG_NUMBERS_MINOR, VERSION_LCD_BIG_NUMBERS_PATCH)
 
-// START Copy from https://github.com/ArminJo/Arduino-Utils/blob/master/src/LCDPrintUtils.hpp
+// START - This is a copy from https://github.com/ArminJo/Arduino-Utils/blob/master/src/LCDPrintUtils.hpp
 //#define USE_PARALLEL_2004_LCD // Is default
 //#define USE_PARALLEL_1602_LCD
 //#define USE_SERIAL_2004_LCD
@@ -59,20 +58,19 @@
 #endif
 
 #if defined(USE_PARALLEL_2004_LCD) || defined(USE_PARALLEL_1602_LCD)
-#  if defined(USE_PARALLEL_2004_LCD)
-#define LCD_ROWS        4
-#  else
-#define LCD_ROWS        2
-#  endif
 #define USE_PARALLEL_LCD
-#include <LiquidCrystal.h>
+#include "LiquidCrystal.h"
 #else
-#  if defined(USE_SERIAL_2004_LCD)
-#define LCD_ROWS        4
-#  else
-#define LCD_ROWS        2
-#  endif
+#define USE_SERIAL_LCD
 #include "LiquidCrystal_I2C.hpp" // Here we use an enhanced version, which supports SoftI2CMaster
+#endif
+
+#if defined(USE_PARALLEL_1602_LCD) || defined(USE_SERIAL_1602_LCD)
+#define LCD_COLUMNS     16
+#define LCD_ROWS        2
+#else
+#define LCD_COLUMNS     20
+#define LCD_ROWS        4
 #endif
 // END Copy from https://github.com/ArminJo/Arduino-Utils/blob/master/src/LCDPrintUtils.hpp
 
@@ -106,14 +104,14 @@
 // http://www.picbasic.co.uk/forum/showthread.php?t=13376
 // 8 custom characters for 1 column font
 const uint8_t bigNumbers1x2CustomPatterns_1[][8] PROGMEM = {
- { B11110, B10010, B10010, B10010, B10010, B10010, B10010, B11110 }, // 0 Closed rectangle - 8
- { B11110, B10010, B10010, B10010, B10010, B10010, B10010, B10010 }, // 1 Rectangle - open at bottom - 0
- { B10010, B10010, B10010, B10010, B10010, B10010, B10010, B11110 }, // 2 Rectangle - open at top - 0
- { B11110, B00010, B00010, B00010, B00010, B00010, B00010, B11110 }, // 3 Rectangle - open at left
- { B11110, B10000, B10000, B10000, B10000, B10000, B10000, B11110 }, // 4 Rectangle - open at right
- { B00010, B00010, B00010, B00010, B00010, B00010, B00010, B00010 }, // 5 Right bar - 1
- { B11110, B00010, B00010, B00010, B00010, B00010, B00010, B00010 }, // 6 Top right - 7
- { B00010, B00010, B00010, B00010, B00010, B00010, B00010, B11110 }  // 7 Right bottom - 3,5,9
+ { 0b11110, 0b10010, 0b10010, 0b10010, 0b10010, 0b10010, 0b10010, 0b11110 }, // 0 Closed rectangle - used for: 8, 9
+ { 0b11110, 0b10010, 0b10010, 0b10010, 0b10010, 0b10010, 0b10010, 0b10010 }, // 1 Rectangle - open at bottom - 0
+ { 0b10010, 0b10010, 0b10010, 0b10010, 0b10010, 0b10010, 0b10010, 0b11110 }, // 2 Rectangle - open at top - 0, 4, 6, 8
+ { 0b11110, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b11110 }, // 3 Rectangle - open at left - 3
+ { 0b11110, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11110 }, // 4 Rectangle - open at right - 2, 5, 6
+ { 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010 }, // 5 Right bar - 1, 4, 7
+ { 0b11110, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010 }, // 6 Top right - 2, 7
+ { 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b11110 }  // 7 Right bottom - 3,5,9
 };
 const uint8_t bigNumbers1x2_1[2][13] PROGMEM = {                   // 2-line numbers
 //    "-"   "."   ":"    0     1     2     3     4     5     6     7     8     9
@@ -124,16 +122,16 @@ const uint8_t bigNumbers1x2_1[2][13] PROGMEM = {                   // 2-line num
 // https://www.alpenglowindustries.com/blog/the-big-numbers-go-marching-2x2#/
 // https://github.com/AlpenglowIndustries/Alpenglow_BigNums2x2
 // 8 custom characters for Trek font
-// Requires 1 0xFF Block for the special "0"
+// Requires 1 0xFF block for the special "0"
 const uint8_t bigNumbers2x2CustomPatterns_1[][8] PROGMEM = {
- { B11111, B11111, B00000, B00000, B00000, B00000, B00000, B00000 }, // 0
- { B11000, B11000, B11000, B11000, B11000, B11000, B11000, B11000 }, // 1
- { B00000, B00000, B00000, B00000, B00000, B00000, B11111, B11111 }, // 2
- { B11111, B11111, B00011, B00011, B00011, B00011, B11111, B11111 }, // 3
- { B11111, B11111, B11000, B11000, B11000, B11000, B11111, B11111 }, // 4
- { B11111, B11111, B11000, B11000, B11000, B11000, B11000, B11000 }, // 5
- { B00011, B00011, B00011, B00011, B00011, B00011, B11111, B11111 }, // 6
- { B11000, B11000, B11000, B11000, B11000, B11000, B11111, B11111 } // 7
+ { 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000 }, // 0
+ { 0b11000, 0b11000, 0b11000, 0b11000, 0b11000, 0b11000, 0b11000, 0b11000 }, // 1
+ { 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b11111 }, // 2
+ { 0b11111, 0b11111, 0b00011, 0b00011, 0b00011, 0b00011, 0b11111, 0b11111 }, // 3
+ { 0b11111, 0b11111, 0b11000, 0b11000, 0b11000, 0b11000, 0b11111, 0b11111 }, // 4
+ { 0b11111, 0b11111, 0b11000, 0b11000, 0b11000, 0b11000, 0b11000, 0b11000 }, // 5
+ { 0b00011, 0b00011, 0b00011, 0b00011, 0b00011, 0b00011, 0b11111, 0b11111 }, // 6
+ { 0b11000, 0b11000, 0b11000, 0b11000, 0b11000, 0b11000, 0b11111, 0b11111 } // 7
 };
 const uint8_t bigNumbers2x2_1[2][23] PROGMEM = {                   // 2-line numbers
 //    "-"   "."   ":"       0          1          2          3          4          5          6          7          8          9
@@ -144,14 +142,14 @@ const uint8_t bigNumbers2x2_1[2][23] PROGMEM = {                   // 2-line num
 
 // 3x2 https://liudr.wordpress.com/2011/03/21/big-font/
 // 3x2 http://www.netzmafia.de/skripten/hardware/Arduino/LCD/index.html
-// Requires 0xFF Blocks, but character 6 could be used for it
+// Requires 0xFF blocks, but character 6 could be used for it
 const uint8_t bigNumbers3x2CustomPatterns_1[6][8] PROGMEM = {
-  { B11111,B11111,B00000,B00000,B00000,B00000,B00000,B00000 }, // 0 Upper bar
-  { B00000,B00000,B00000,B00000,B00000,B00000,B11111,B11111 }, // 1 Lower bar
-  { B11111,B11111,B00000,B00000,B00000,B00000,B11111,B11111 }, // 2 Upper and lower bar
-  { B00000,B00000,B00000,B11111,B11111,B00000,B00000,B00000 }, // 3 Minus sign
-  { B00000,B00000,B00000,B00000,B00000,B01110,B01110,B01110 }, // 4 Decimal point
-  { B00000,B00000,B01110,B01110,B01110,B00000,B00000,B00000 }  // 5 Colon
+  { 0b11111, 0b11111 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b00000 }, // 0 Upper bar
+  { 0b00000, 0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b11111 ,0b11111 }, // 1 Lower bar
+  { 0b11111, 0b11111 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b11111 ,0b11111 }, // 2 Upper and lower bar
+  { 0b00000 ,0b00000 ,0b00000 ,0b11111 ,0b11111 ,0b00000 ,0b00000 ,0b00000 }, // 3 Minus sign
+  { 0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b01110 ,0b01110 ,0b01110 }, // 4 Decimal point
+  { 0b00000 ,0b00000 ,0b01110 ,0b01110 ,0b01110 ,0b00000 ,0b00000 ,0b00000 }  // 5 Colon
 };
 const uint8_t bigNumbers3x2_1[2][33] PROGMEM = {               // 2-line numbers
 //    "-"   "."   ":"         0               1               2               3               4               5               6               7               8               9
@@ -160,16 +158,16 @@ const uint8_t bigNumbers3x2_1[2][33] PROGMEM = {               // 2-line numbers
 };
 
 // 3x2 https://forum.arduino.cc/t/display-3-character-wide-big-digits-on-16x2-lcd/905360 bottom of page
-// Requires 0xFF Blocks
+// Requires 0xFF blocks
 const uint8_t bigNumbers3x2CustomPatterns_2[8][8] PROGMEM = {
-  { B11111,B11111,B11111,B00000,B00000,B00000,B00000,B00000 }, // 0 Upper bar
-  { B00000,B00000,B00000,B00000,B00000,B11111,B11111,B11111 }, // 1 Lower bar
-  { B11111,B11111,B11111,B00000,B00000,B00000,B11111,B11111 }, // 2 Upper and lower bar for 5,6
-  { B11100,B11100,B11100,B11100,B11100,B11100,B11100,B11100 }, // 3 Left bar
-  { B00000,B00000,B00000,B00000,B00000,B11100,B11100,B11100 }, // 4 Left lower bar for 2
-  { B11100,B11100,B11100,B00000,B00000,B00000,B11100,B11100 }, // 5 Left upper and lower bar for 5,6
-  { B00000,B00000,B00000,B00000,B00000,B01110,B01110,B01110 }, // 6 Decimal point
-  { B00000,B00000,B01110,B01110,B01110,B00000,B00000,B00000 }  // 7 Colon
+  { 0b11111 ,0b11111 ,0b11111 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b00000 }, // 0 Upper bar
+  { 0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b11111 ,0b11111 ,0b11111 }, // 1 Lower bar
+  { 0b11111 ,0b11111 ,0b11111 ,0b00000 ,0b00000 ,0b00000 ,0b11111 ,0b11111 }, // 2 Upper and lower bar for 5,6
+  { 0b11100 ,0b11100 ,0b11100 ,0b11100 ,0b11100 ,0b11100 ,0b11100 ,0b11100 }, // 3 Left bar
+  { 0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b11100 ,0b11100 ,0b11100 }, // 4 Left lower bar for 2
+  { 0b11100 ,0b11100 ,0b11100 ,0b00000 ,0b00000 ,0b00000 ,0b11100 ,0b11100 }, // 5 Left upper and lower bar for 5,6
+  { 0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b00000 ,0b01110 ,0b01110 ,0b01110 }, // 6 Decimal point
+  { 0b00000 ,0b00000 ,0b01110 ,0b01110 ,0b01110 ,0b00000 ,0b00000 ,0b00000 }  // 7 Colon
 };
 const uint8_t bigNumbers3x2_2[2][33] PROGMEM = {               // 2-line numbers
 //    "-"   "."   ":"         0               1               2               3               4               5               6               7               8               9
@@ -179,14 +177,14 @@ const uint8_t bigNumbers3x2_2[2][33] PROGMEM = {               // 2-line numbers
 
 //3x2 https://exploreembedded.com/wiki/Distance_Meter_with_Big_Fonts
 const uint8_t bigNumbers3x2CustomPatterns_3[8][8] PROGMEM = {
-{ B11100, B11110, B11110, B11110, B11110, B11110, B11110, B11100}, // 0 left bar
-{ B00111, B01111, B01111, B01111, B01111, B01111, B01111, B00111}, // 1 right bar
-{ B11111, B11111, B00000, B00000, B00000, B00000, B11111, B11111}, // 2 upper and lower bar
-{ B11110, B11100, B00000, B00000, B00000, B00000, B11000, B11100}, // 3 left upper and lower rounded
-{ B01111, B00111, B00000, B00000, B00000, B00000, B00011, B00111}, // 4 right upper and lower rounded
-{ B00000, B00000, B00000, B00000, B00000, B00000, B11111, B11111}, // 5 right lower
-{ B00000, B00000, B00000, B00000, B00000, B00000, B00111, B01111}, // 6 right lower rounded
-{ B11111, B11111, B00000, B00000, B00000, B00000, B00000, B00000}  // 7 upper bar
+{ 0b11100, 0b11110, 0b11110, 0b11110, 0b11110, 0b11110, 0b11110, 0b11100}, // 0 left bar
+{ 0b00111, 0b01111, 0b01111, 0b01111, 0b01111, 0b01111, 0b01111, 0b00111}, // 1 right bar
+{ 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b11111}, // 2 upper and lower bar
+{ 0b11110, 0b11100, 0b00000, 0b00000, 0b00000, 0b00000, 0b11000, 0b11100}, // 3 left upper and lower rounded
+{ 0b01111, 0b00111, 0b00000, 0b00000, 0b00000, 0b00000, 0b00011, 0b00111}, // 4 right upper and lower rounded
+{ 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b11111}, // 5 right lower
+{ 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00111, 0b01111}, // 6 right lower rounded
+{ 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000}  // 7 upper bar
 };
 const uint8_t bigNumbers3x2_3[2][33] PROGMEM = {                   // 2-line numbers
 //    "-"   "."   ":"         0               1               2               3               4               5               6               7               8               9
@@ -231,7 +229,7 @@ const uint8_t bigNumbers2x3_2[][23] PROGMEM = {                   // 3-line numb
 };
 
 // 3x4 Font custom patterns http://woodsgood.ca/projects/2015/03/06/3-4-line-big-font-numerals/
-// Requires 0xFF Blocks
+// Requires 0xFF blocks
 const uint8_t bigNumbers3x3And3x4CustomPatterns_1[][8] PROGMEM = { { 0x01, 0x07, 0x0F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F }, // char 0: bottom right triangle
         { 0x00, 0x00, 0x00, 0x00, 0x1F, 0x1F, 0x1F, 0x1F },     // char 1: bottom block
         { 0x10, 0x1C, 0x1E, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F },     // char 2: bottom left triangle
@@ -261,16 +259,16 @@ const uint8_t bigNumbers3x4_1[4][33] PROGMEM = {                   // 4-line num
 
 // 3x4 Font variant 2
 // https://forum.arduino.cc/t/wie-bekommt-man-solch-grosse-zahlen-hin/986148/12
-// Requires 0xFF Blocks
+// Requires 0xFF blocks
 const uint8_t bigNumbers3x4CustomPatterns_2[][8] PROGMEM = {
-{ B00000, B00000, B00000, B00000, B00001, B00111, B01111, B11111 }, // char 0: bottom right triangle
-{ B00000, B00000, B00000, B00000, B11111, B11111, B11111, B11111 }, // char 1: bottom block
-{ B00000, B00000, B00000, B00000, B10000, B11100, B11110, B11111 }, // char 2: bottom left triangle
-{ B11111, B01111, B00111, B00001, B00000, B00000, B00000, B00000 }, // char 3: top right triangle
-{ B11111, B11111, B11111, B11111, B00000, B00000, B00000, B00000 }, // char 4: upper block
-{ B11111, B11110, B11100, B10000, B00000, B00000, B00000, B00000 }, // char 5: top left triangle
-{ B11111, B11111, B11111, B11111, B11111, B01111, B00111, B00001 }, // char 6: full top right triangle
-{ B11111, B11111, B11111, B11111, B11111, B11110, B11100, B10000 }  // char 7: full top left triangle
+{ 0b00000, 0b00000, 0b00000, 0b00000, 0b00001, 0b00111, 0b01111, 0b11111 }, // char 0: bottom right triangle
+{ 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b11111, 0b11111, 0b11111 }, // char 1: bottom block
+{ 0b00000, 0b00000, 0b00000, 0b00000, 0b10000, 0b11100, 0b11110, 0b11111 }, // char 2: bottom left triangle
+{ 0b11111, 0b01111, 0b00111, 0b00001, 0b00000, 0b00000, 0b00000, 0b00000 }, // char 3: top right triangle
+{ 0b11111, 0b11111, 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000 }, // char 4: upper block
+{ 0b11111, 0b11110, 0b11100, 0b10000, 0b00000, 0b00000, 0b00000, 0b00000 }, // char 5: top left triangle
+{ 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b01111, 0b00111, 0b00001 }, // char 6: full top right triangle
+{ 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11110, 0b11100, 0b10000 }  // char 7: full top left triangle
 };
 
 const uint8_t bigNumbers3x4_2[4][33] PROGMEM = {                         // 4-line numbers
@@ -297,12 +295,14 @@ public:
     uint8_t NumberWidth; // Width of the rendered number not including the optional blank gap
     uint8_t NumberHeight;
     uint8_t FontVariant;
-    const uint8_t (*bigNumbersCustomPatterns)[8];
+    const uint8_t (*bigNumbersCustomPatternsPGM)[8];
     uint8_t NumberOfCustomPatterns;
     const uint8_t *bigNumbersFont;
     bool forceGapBetweenNumbers;    // The default depends on the font used
     uint8_t upperLeftColumnIndex;   // Start of the next character
+#if defined(AUTO_DETECT_LCD_COLUMNS)
     uint8_t maximumColumns; // Auto detected maximum of columns which can be written (e.g. 16 or 20). To avoid clearing the gap after a number which ends at the last column. (44 bytes program space)
+#endif
     uint8_t upperLeftRowIndex;      // Start of the next character
 
     /*
@@ -322,10 +322,12 @@ public:
      * This also sets cursor to 0.0 by call to _createChar()
      */
     void begin() {
+#if defined(AUTO_DETECT_LCD_COLUMNS)
         maximumColumns = 0;
+#endif
         // create maximum 8 custom characters
         for (uint_fast8_t i = 0; i < NumberOfCustomPatterns; i++) {
-            _createChar(i, bigNumbersCustomPatterns[i]);
+            _createChar(i, bigNumbersCustomPatternsPGM[i]);
         }
     }
 
@@ -351,54 +353,54 @@ public:
         forceGapBetweenNumbers = true;
         switch (aBigNumberFontIdentifier) {
         case BIG_NUMBERS_FONT_1_COLUMN_2_ROWS_VARIANT_1:
-            bigNumbersCustomPatterns = bigNumbers1x2CustomPatterns_1;
+            bigNumbersCustomPatternsPGM = bigNumbers1x2CustomPatterns_1;
             bigNumbersFont = (const uint8_t*) bigNumbers1x2_1;
             forceGapBetweenNumbers = false;
             break;
         case BIG_NUMBERS_FONT_2_COLUMN_2_ROWS_VARIANT_1:
-            bigNumbersCustomPatterns = bigNumbers2x2CustomPatterns_1;
+            bigNumbersCustomPatternsPGM = bigNumbers2x2CustomPatterns_1;
             bigNumbersFont = (const uint8_t*) bigNumbers2x2_1;
             break;
         case BIG_NUMBERS_FONT_3_COLUMN_2_ROWS_VARIANT_1:
-            bigNumbersCustomPatterns = bigNumbers3x2CustomPatterns_1;
+            bigNumbersCustomPatternsPGM = bigNumbers3x2CustomPatterns_1;
             bigNumbersFont = (const uint8_t*) bigNumbers3x2_1;
             NumberOfCustomPatterns = 6;
             break;
         case BIG_NUMBERS_FONT_3_COLUMN_2_ROWS_VARIANT_2:
-            bigNumbersCustomPatterns = bigNumbers3x2CustomPatterns_3;
+            bigNumbersCustomPatternsPGM = bigNumbers3x2CustomPatterns_3;
             bigNumbersFont = (const uint8_t*) bigNumbers3x2_3;
             forceGapBetweenNumbers = false;
             break;
         case BIG_NUMBERS_FONT_3_COLUMN_2_ROWS_VARIANT_3:
-            bigNumbersCustomPatterns = bigNumbers3x2CustomPatterns_2;
+            bigNumbersCustomPatternsPGM = bigNumbers3x2CustomPatterns_2;
             bigNumbersFont = (const uint8_t*) bigNumbers3x2_2;
             forceGapBetweenNumbers = false;
             break;
 #if LCD_ROWS <= 2
-            default:
-                // ERROR: NumberHeight is greater than 2 for a 2 line display -> fallback to 2x2 font
-                bigNumbersCustomPatterns = bigNumbers2x2CustomPatterns_1;
-                bigNumbersFont = (const uint8_t*) bigNumbers2x2_1;
-                break;
+        default:
+            // ERROR: NumberHeight is greater than 2 for a 2 line display -> fallback to 2x2 font
+            bigNumbersCustomPatternsPGM = bigNumbers2x2CustomPatterns_1;
+            bigNumbersFont = (const uint8_t*) bigNumbers2x2_1;
+            break;
 #else
         case BIG_NUMBERS_FONT_2_COLUMN_3_ROWS_VARIANT_1:
-            bigNumbersCustomPatterns = bigNumbers2x3CustomPatterns_1;
+            bigNumbersCustomPatternsPGM = bigNumbers2x3CustomPatterns_1;
             bigNumbersFont = (const uint8_t*) bigNumbers2x3_1;
             break;
         case BIG_NUMBERS_FONT_2_COLUMN_3_ROWS_VARIANT_2:
-            bigNumbersCustomPatterns = bigNumbers2x3CustomPatterns_2;
+            bigNumbersCustomPatternsPGM = bigNumbers2x3CustomPatterns_2;
             bigNumbersFont = (const uint8_t*) bigNumbers2x3_2;
             break;
         case BIG_NUMBERS_FONT_3_COLUMN_3_ROWS_VARIANT_1:
-            bigNumbersCustomPatterns = bigNumbers3x3And3x4CustomPatterns_1;
+            bigNumbersCustomPatternsPGM = bigNumbers3x3And3x4CustomPatterns_1;
             bigNumbersFont = (const uint8_t*) bigNumbers3x3_1;
             break;
         case BIG_NUMBERS_FONT_3_COLUMN_4_ROWS_VARIANT_1:
-            bigNumbersCustomPatterns = bigNumbers3x3And3x4CustomPatterns_1;
+            bigNumbersCustomPatternsPGM = bigNumbers3x3And3x4CustomPatterns_1;
             bigNumbersFont = (const uint8_t*) bigNumbers3x4_1;
             break;
         case BIG_NUMBERS_FONT_3_COLUMN_4_ROWS_VARIANT_2:
-            bigNumbersCustomPatterns = bigNumbers3x4CustomPatterns_2;
+            bigNumbersCustomPatternsPGM = bigNumbers3x4CustomPatterns_2;
             bigNumbersFont = (const uint8_t*) bigNumbers3x4_2;
             break;
 #endif
@@ -420,11 +422,11 @@ public:
      * but with PROGMEM input
      * This also sets cursor to 0.0
      */
-    void _createChar(uint8_t location, const uint8_t *charmap) {
-        location &= 0x7; // we only have 8 locations 0-7
-        LCD->command(LCD_SETCGRAMADDR | (location << 3));
-        for (int i = 0; i < 8; i++) {
-            LCD->write(pgm_read_byte(charmap++));
+    void _createChar(uint_fast8_t aCharacterIndex, const uint8_t *CustomPatternMapPGM) {
+        aCharacterIndex &= 0x7; // we only have 8 locations 0-7
+        LCD->command(LCD_SETCGRAMADDR | (aCharacterIndex << 3));
+        for (uint_fast8_t i = 0; i < 8; i++) {
+            LCD->write(pgm_read_byte(CustomPatternMapPGM++));
         }
         LCD->command(LCD_SETDDRAMADDR); // set cursor to 0.0, this avoids overwriting CGRAM by next write() command.
     }
@@ -507,6 +509,8 @@ public:
         }
         upperLeftColumnIndex += tCharacterWidth; // now we are at the index for the next number or the optional blank gap
 
+#if defined(AUTO_DETECT_LCD_COLUMNS)
+
         /*
          * Auto detect maximum column count, which can be written.
          * We assume that all characters, which were written, fit on the display.
@@ -516,12 +520,18 @@ public:
             // find maximum column at runtime
             maximumColumns = upperLeftColumnIndex;
         }
+#endif
 
         /*
          * Implement the gap after the number character
          */
         if (forceGapBetweenNumbers && (NumberWidth == 1 || tCharacterWidth > 1 || aNumberOrSpecialCharacter == '-')) {
-            if (maximumColumns >= upperLeftColumnIndex) {
+#if defined(AUTO_DETECT_LCD_COLUMNS)
+            if (maximumColumns >= upperLeftColumnIndex)
+#else
+                if (LCD_COLUMNS >= upperLeftColumnIndex)
+#endif
+                {
                 // We are not at the last column, so clear the gap after the number
                 for (uint_fast8_t tRow = 0; tRow < NumberHeight; tRow++) {
                     LCD->setCursor(upperLeftColumnIndex, upperLeftRowIndex + tRow);

@@ -2,7 +2,6 @@
  * AVRUtils.h
  *
  *  Copyright (C) 2016-2024  Armin Joachimsmeyer
- *  Email: armin.joachimsmeyer@gmail.com
  *
  *  This file is part of Arduino-Utils https://github.com/ArminJo/Arduino-Utils.
  *
@@ -70,6 +69,7 @@ extern volatile unsigned long timer0_millis;
 
 void initSleep(uint8_t tSleepMode);
 void initPeriodicSleepWithWatchdog(uint8_t tSleepMode, uint8_t aWatchdogPrescaler);
+void initTimeoutWithWatchdog(uint8_t aWatchdogPrescaler);
 uint16_t computeSleepMillis(uint8_t aWatchdogPrescaler);
 void sleepWithWatchdog(uint8_t aWatchdogPrescaler, bool aAdjustMillis = false);
 
@@ -92,11 +92,13 @@ void printCurrentAvailableHeapSizeSimple(Print *aSerial);
 void initStackFreeMeasurement();
 
 int16_t getStackMaxUsedAndUnusedSizes(uint16_t *aStackUnusedSizePointer);
+int16_t getHeapMaxUsedSize();
 void printStackMaxUsedAndUnusedSizes(Print *aSerial);
 bool printStackMaxUsedAndUnusedSizesIfChanged(Print *aSerial);
 
 void printBaseRAMData(Print *aSerial);
-void printRAMInfo(Print *aSerial);
+void printRAMAndStackInfo(Print *aSerial);
+void printRAMInfo(Print *aSerial) __attribute__ ((deprecated ("Renamed to printRAMAndStackInfo()")));
 
 bool isAddressInRAM(void *aAddressToCheck);
 bool isAddressBelowAvailableHeapStart(void *aAddressToCheck);
