@@ -33,6 +33,7 @@ jobs:
 #          repository: ArminJo/NeoPatterns
 #          ref: master
 #          path: CustomNeoPatterns # must contain string "Custom"
+          # No need to put this custom library in the required-libraries list
 
       - name: Compile all examples
         uses: ArminJo/arduino-test-compile@master
